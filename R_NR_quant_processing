@@ -1,0 +1,631 @@
+##### TNFi figure
+library(ggplot2)
+library(Seurat)
+library(dplyr)
+library(ComplexHeatmap)
+# library(circlize)
+# library(monocle3)
+library(magrittr)
+library(tidyr)
+library(ggpubr)
+library(tibble)
+library(SeuratWrappers)
+library(sctransform)
+# if (!requireNamespace("Bioclanager", quietly = TRUE)) install.packages("Bioclanager")
+# Bioclanager::install("glmGamPoi")
+library(glmGamPoi)
+library(ggpubr)
+library(pheatmap)
+library(stringr)
+library(viridisLite)
+library(viridis) # required viridisLite
+library(tidyverse)
+
+
+######
+## Fig 1
+######
+
+
+### Fig 1B. TNFi 
+SO.tot.TNFi$manual_clusters <- as.character(SO.tot.TNFi$rev.manual_clusters)
+SO.tot.TNFi$manual_clusters <- factor(SO.tot.TNFi$manual_clusters,
+                                      levels = c("T cell", "NK", "Proliferating T_NK", "B cell", "Plasma cell",
+                                                 "CD14 Monocyte", "CD16 Monocyte", "DC", "pDC", "HPSC"))
+DimPlot(SO.tot.TNFi, label = T, group.by = 'manual_clusters')
+levels = c("T cell", "NK", "Proliferating T_NK", "B cell", "Plasma cell",
+           "CD14 Monocyte", "CD16 Monocyte", "DC", "pDC"))
+Idents(SO.tot.TNFi) <- 'manual_clusters'
+DimPlot(SO.tot.TNFi, label = T)
+SO.tot.TNFi$rev.manual_clusters <- factor(SO.tot.TNFi$manual_clusters,
+                                          levels = factor(rev(levels(SO.tot.TNFi$manual_clusters))))
+
+palette <- c("#F77472", "#B64E48", "#8C8EC4", "#EDA865", "#FEE090", "#E0F3F8", "#ABD9E9", "#74ADD1", "#4575B4", "#6EAD6B")
+
+pdf("~/TNFi_IL17Ai_AS/Figure/Fig 1B. tot umap_revise.pdf", width=6, height=4) 
+DimPlot(SO.tot.TNFi, group.by = 'manual_clusters', cols = palette) + NoAxes()
+dev.off()
+
+MtP.tot.fig <- c("CD3D", "CD3E", "NCAM1", "GNLY", "NKG7", "CACYBP", "MKI67",
+                 "MS4A1", "CD79A", "TNFRSF17", "IGHA1","JCHAIN", # NME1
+                 "CD14", "S100A9", "FCGR3A", "VMO1",
+                 "HLA-DQA1", "GPR183", "TSPAN13", "IL3RA", "IRF8",
+                 "CD34", "GATA2", "ERG", "CPA3")
+DefaultAssay(SO.tot.TNFi) <- 'RNA'
+
+table(SO.tot.TNFi$rev.manual_clusters)
+pdf("~/TNFi_IL17Ai_AS/Figure/Fig 1C. tot markers plot.pdf", width=8.6, height=3.1) 
+DotPlot(SO.tot.TNFi, features = MtP.tot.fig, group.by = 'rev.manual_clusters') + RotatedAxis() + scale_color_viridis()
+dev.off()
+
+
+library(dittoSeq)
+dittoBarPlot(SO.tot.TNFi, var = 'manual_clusters', group.by = 'ident.status2', retain.factor.levels = T)
+dittoBarPlot(SO.tot.TNFi, var = 'manual_clusters', group.by = 'ident.status.specific', retain.factor.levels = T)
+
+
+
+DefaultAssay(SO.tot.harmony) <- 'RNA'
+DotPlot(SO.tot.harmony, features = MtP.tot.fig, group.by = 'rev.manual_clusters') + RotatedAxis() + scale_color_viridis()
+
+
+### Fig 1D. Proportion 차이나는 것들 나열. 얘기할 순서대로 나열하자. 
+
+metadata <- data.frame(SO.tot.TNFi@meta.data)
+
+metadata$ident.status2 <- factor(metadata$ident.status2, levels = c("R_Pre", "R_Post", "NR_Pre", "NR_Post"))
+metadata$manual_clusters <- as.factor(metadata$manual_clusters)
+metadata$ident.name <- as.factor(metadata$ident.name)
+
+cluster_counts <- metadata %>%
+  group_by(ident.status2, manual_clusters, ident.name) %>%
+  summarise(count = n(), .groups = "drop")
+
+# Calculate total cells for each condition for each patient
+total_cells <- metadata %>%
+  group_by(ident.status2, ident.name) %>%
+  summarise(total = n(), .groups = "drop")
+
+# Merge total cells datPostrame with cluster counts datPostrame
+cluster_counts <- merge(cluster_counts, total_cells, by = c("ident.status2", "ident.name"))
+
+# Calculate the percentage
+cluster_counts$percentage <- (cluster_counts$count / cluster_counts$total) * 100
+
+# Define colors for boxplot
+box_colors <- c("R_Pre" = "#2986cc", "R_Post" = "#2986cc", "NR_Pre" = "#F67280", "NR_Post" = "#F67280") # "#f44336" 썼었는데.. 너무 쨍함.
+
+results <- data.frame(cluster = character(), p_value = numeric(), test = character())
+plots <- list()
+
+library(tidyverse)
+#install.packages("broom")
+library(broom)
+
+
+# For each manual_cluster, perform the tests
+table(SO.tot.TNFi$manual_clusters.small)
+
+
+library(gridExtra)
+original_order <- levels(SO.tot.TNFi$manual_clusters)
+original_order <- levels(SO.Mono.harmony$manual_clusters)
+
+plots <- plots[original_order]
+grid.arrange(grobs = plots, ncol = 5)
+grid.arrange(grobs = plots[1:15], ncol = 5)
+
+plots[['24']]
+
+
+pdf("/home/swg/TNFi_IL17Ai_AS/Figure/test.pdf", width=13, height=6) 
+grid.arrange(grobs = plots, ncol = 5)
+dev.off() 
+
+
+### Fig 1E. 그래서 전체적인 느낌이 어때? 어디가 커? 
+SO.test <- subset(SO.tot.TNFi, ident.status2 %in% c("R_Pre", "NR_Pre"))
+SO.test$ident.status2 <- as.character(SO.test$ident.status2)
+table(SO.test$ident.status2)
+SO.test$ident.status2 <- factor(SO.test$ident.status2,
+                                levels = c("R_Pre", "NR_Pre"))
+
+
+test_milo <- as.SingleCellExperiment(SO.test)
+
+reducedDim(test_milo, "HARMONY", withDimnames=TRUE) <- SO.test[['harmony']]@cell.embeddings
+reducedDim(test_milo, "UMAP", withDimnames=TRUE) <- SO.test[['umap']]@cell.embeddings
+
+test_milo <- Milo(test_milo)
+
+test_milo <- buildGraph(test_milo, k = 30, d = 30, reduced.dim = 'HARMONY')
+
+test_milo <- makeNhoods(test_milo, prop = 0.1, k = 30, d=30, refined = TRUE, reduced_dims = "HARMONY")
+
+plotNhoodSizeHist(test_milo)
+mean(plotNhoodSizeHist(test_milo)$data$nh_size) 
+test_milo <- countCells(test_milo, meta.data = data.frame(colData(test_milo)), samples="ident.status.specific")
+
+# Now we are all set to test for differential abundance in neighbourhoods. 
+# We implement this hypothesis testing in a generalized linear model (GLM) framework, 
+# specifically using the Negative Binomial GLM implementation in edgeR.
+
+# We first need to think about our experimental design. The design matrix should match samples to a condition of interest. In this case the Condition is the covariate we are going to test for.
+# We also include the sequencing.batch column in the design matrix. This represents a known technical covariate that we want to account for in DA testing.
+test_design <- data.frame(colData(test_milo))[,c("ident.status.specific", "ident.status2", "orig.ident")] 
+
+test_design$ident.status2 <- as.factor(test_design$ident.status2) 
+test_design$orig.ident <- as.factor(test_design$orig.ident) 
+
+test_design <- distinct(test_design)
+rownames(test_design) <- test_design$ident.status.specific
+test_design <- test_design[colnames(nhoodCounts(test_milo)), , drop=FALSE]
+
+
+test_milo <- calcNhoodDistance(test_milo, d=30, reduced.dim = 'HARMONY')
+
+# Now we can do the DA test, explicitly defining our experimental design. In this case, we want to test for differences between experimental stages, while accounting for the variability between technical batches (You can find more info on how to use formulas to define a testing design in R here)
+da_results <- testNhoods(test_milo, design = ~ orig.ident + ident.status2, design.df = test_design, reduced.dim = 'HARMONY')
+## Using TMM normalisation, Performing spatial FDR correction withk-distance weighting
+
+#  P-value for each neighbourhood, which indicates whether there is significant differential abundance between developmental stages. The main statistics we consider here are:
+# logFC: indicates the log-Fold change in cell numbers between sample
+
+da_results %>%
+  arrange(- SpatialFDR) %>%
+  head() 
+
+###
+test_milo <- buildNhoodGraph(test_milo) 
+
+
+############
+###
+##########
+
+SO.test <- ml.tot
+test_design <- data.frame(colData(SO.test))[,c("ident.status.specific", "ident.status2", "orig.ident")]
+test_design$ident.status2 <- as.factor(test_design$ident.status2) 
+test_design$orig.ident <- as.factor(test_design$orig.ident) 
+
+test_design <- distinct(test_design)
+rownames(test_design) <- test_design$ident.status.specific
+test_design <- test_design[colnames(nhoodCounts(SO.test)), , drop=FALSE]
+
+da_results <- testNhoods(SO.test, design = ~ orig.ident + ident.status2, design.df = test_design, reduced.dim = 'HARMONY')
+
+da_results %>%
+  arrange(- SpatialFDR) %>%
+  head() 
+
+#####
+library(graph)
+plotNhoodGraphDA_custom <- function(x, milo_res, alpha=0.05, res_column = "logFC", ... ){
+  #if(!.valid_graph(nhoodGraph(x))){
+  #  stop("Not a valid Milo object - neighbourhood graph is missing. Please run buildNhoodGraph() first.")
+  #}
+  #if (is.character(layout)) {
+  #  if (!layout %in% names(reducedDims(x))) {
+  #    stop(layout, "is not in readucedDim(x) - choose a different layout")
+  #  }
+  #}
+  
+  ## Add milo results to colData
+  signif_res <- milo_res
+  signif_res[signif_res$SpatialFDR > alpha,res_column] <- 0
+  colData(x)[res_column] <- NA
+  
+  # this needs to handle nhood subsetting.
+  if(any(names(list(...)) %in% c("subset.nhoods"))){
+    subset.nhoods <- list(...)$subset.nhoods
+    sub.indices <- nhoodIndex(x)[subset.nhoods]
+    colData(x)[unlist(sub.indices[signif_res$Nhood]), res_column] <- signif_res[,res_column]
+  } else{
+    colData(x)[unlist(nhoodIndex(x)[signif_res$Nhood]),res_column] <- signif_res[,res_column]
+  }
+  
+  ## Plot logFC with custom color gradient
+  p <- plotNhoodGraph(x, colour_by = res_column, ...) 
+  
+  p <- p + scale_fill_gradient2(low="#16537e", mid = 'white',high="#f12a3f") # #2475B3, #D76470,,,,#2986cc,#F67280
+  return(p)
+}
+
+# This turns out to be some what time-consuming because the plotting engine uses ggnetwork, so it's fallen down the priority list. 
+# In the interim - if you have lots of very dense overlapping neighbourhoods then I would recommend using a larger k and a smaller prop in makeNhoods and buildGraph to alleviate the problem for now.
+# The combination of a larger k and smaller prop should create fewer nhoods, which will then reduce the total number of edges that need plotting. It's not an ideal solution I agree; 
+
+pdf("~/TNFi_IL17Ai_AS/Figure/Fig 1E.milo tot.pdf", width=6, height=4) 
+plotNhoodGraphDA_custom(ml.tot, da_results, alpha=1) 
+dev.off()
+
+
+
+
+###  vlnplot beewarm.
+ml.tot <- buildNhoodGraph(ml.tot)
+
+## Find groups
+set.seed(614)
+head(da_results)
+plotNhoodGroups(ml.tot, da_results) 
+plotDAbeeswarm(da_results, "NhoodGroup", alpha = 1.1)
+plotDAbeeswarm(da_results, group.by = 'manual_clusters', alpha = 1.1)
+
+
+
+
+### Fig 1G. Mono, Myd에서 decoupling
+DimPlot(SO.Mono.TNFi, label = T)
+DimPlot(SO.Myd.harmony, label = T)
+av.exp <- AggregateExpression(object = SO.Mono.TNFi, group.by = "ident.status2", assay = "RNA", slot = "data")
+
+av.exp.matrix <- as.matrix(av.exp$RNA)
+cor.exp  <- cor(av.exp.matrix)
+
+
+calculate_correlation <- function(so_object, cell_types, status_col, assay = "RNA", slot = "data") {
+  results <- list()
+  for (cell_type in names(cell_types)) {
+    # 해당 cell type에 대한 데이터 추출
+    subset_data <- subset(so_object, subset = manual_clusters %in% cell_types[[cell_type]])
+    
+    # AggregateExpression을 사용하여 상관 관계 계산
+    av.exp <- AggregateExpression(object = subset_data, group.by = status_col, assay = assay, slot = slot)
+    av.exp.matrix <- as.matrix(av.exp$RNA)
+    cor.exp <- cor(av.exp.matrix)
+    
+    # 필요한 상관 관계 값 추출
+    results[[cell_type]] <- data.frame(
+      Cell_Type = cell_type,
+      R_Pre_Post = cor.exp["R-Pre", "R-Post"],
+      NR_Pre_Post = cor.exp["NR-Pre", "NR-Post"]
+    )
+  }
+  do.call(rbind, results)
+}
+
+cell_types <- list(
+  "T cell" = c("T cell", "Proliferating T_NK"),
+  "NK cell" = c("NK", "Proliferating T_NK"),
+  "Monocyte" = c("CD14 Monocyte", "CD16 Monocyte"),
+  #"DC" = c("DC", "pDC"),
+  "B cell" = c("B cell", "Plasma cell")
+)
+
+
+cor_results <- calculate_correlation(SO.tot.TNFi, cell_types, "ident.status2")
+
+df <- cor_results %>%
+  pivot_longer(cols = c("R_Pre_Post", "NR_Pre_Post"), names_to = "Treatment", values_to = "Value")
+
+df$Treatment <- gsub("_Pre_Post", "", df$Treatment)
+
+ggplot(df, aes(x = Cell_Type, y = Value, color = Treatment, group = Treatment)) +
+  geom_line(aes(color = Treatment)) +
+  geom_point(aes(color = Treatment), size = 2) +
+  scale_color_manual(values = c("R" = "#2986cc", "NR" = "#F67280")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.line = element_line(colour = "black"),
+        panel.border = element_blank(),  # This removes the border
+        panel.grid.major = element_blank()) 
+
+table(SO.tot.TNFi$ident.name, SO.tot.TNFi$ident.status3)
+table(SO.tot.TNFi$TNFi_respond, SO.tot.TNFi$ident.name)
+
+## sample-wise
+calculate_patient_correlation <- function(so_object, cell_types, status_col, assay = "RNA", slot = "data") {
+  patient_results <- list()
+  for (patient in unique(so_object$ident.name)) {
+    patient_data <- subset(so_object, subset = ident.name == patient)
+    response_type <- patient_data$TNFi_respond[1] # 'R' 또는 'NR'
+    for (cell_type in names(cell_types)) {
+      subset_data <- subset(patient_data, subset = manual_clusters %in% cell_types[[cell_type]])
+      av.exp <- AggregateExpression(object = subset_data, group.by = status_col, assay = assay, slot = slot)
+      av.exp.matrix <- as.matrix(av.exp$RNA)
+      cor.exp <- cor(av.exp.matrix)
+      pcc_value <- cor.exp[paste(response_type, "Pre", sep = "-"), paste(response_type, "Post", sep = "-")]
+      patient_results[[paste(patient, cell_type, sep = "_")]] <- data.frame(
+        Patient = patient,
+        Cell_Type = cell_type,
+        Treatment = response_type,
+        PCC = pcc_value
+      )
+    }
+  }
+  do.call(rbind, patient_results)
+}
+
+patient_cor_results <- calculate_patient_correlation(SO.tot.TNFi, cell_types, "ident.status2")
+
+
+compare_pcc <- function(df, cell_types) {
+  p_values <- data.frame(Cell_Type = character(), p_value = numeric())
+  for (cell_type in cell_types) {
+    cell_data <- subset(df, Cell_Type == cell_type)
+    if (shapiro.test(cell_data$PCC)$p.value > 0.05) {
+      p_value <- t.test(PCC ~ Treatment, data = cell_data)$p.value
+    } else {
+      p_value <- wilcox.test(PCC ~ Treatment, data = cell_data)$p.value
+    }
+    p_values <- rbind(p_values, data.frame(Cell_Type = cell_type, p_value = p_value))
+  }
+  p_values
+}
+
+
+ggplot(patient_cor_results, aes(x = Cell_Type, y = PCC, color = Treatment, group = Patient)) +
+  geom_point() +
+  scale_color_manual(values = c("R" = "#2986cc", "NR" = "#F67280")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.line = element_line(colour = "black"),
+        panel.border = element_blank(),
+        panel.grid.major = element_blank()) 
+
+
+
+average_pcc$Treatment <- factor(average_pcc$Treatment, levels = c("R", "NR"))
+average_pcc$Cell_Type <- factor(average_pcc$Cell_Type, levels = c("T cell", "NK cell", "B cell", 'Monocyte'))
+
+#  
+ggplot(average_pcc, aes(x = Cell_Type, y = Avg_PCC, color = Treatment)) +
+  geom_point(size = 3) +
+  scale_color_manual(values = c("R" = "#2986cc", "NR" = "#F67280")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.line = element_line(colour = "black"),
+        panel.border = element_blank(),
+        panel.grid.major = element_blank())
+
+
+
+ggplot(average_pcc, aes(x = Cell_Type, y = Avg_PCC, color = Treatment, group = Treatment)) +
+  geom_line() +  # 선으로 연결
+  geom_point(size = 2) +  # 점 표시
+  geom_errorbar(aes(ymin = Avg_PCC - SE_PCC, ymax = Avg_PCC + SE_PCC), width = 0.2) +  
+  scale_color_manual(values = c("R" = "#2986cc", "NR" = "#F67280")) +  
+  theme_minimal() +  # 테마 설정
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.line = element_line(colour = "black"),
+        panel.border = element_blank(),
+        panel.grid.major = element_blank())
+dev.off()
+
+# saveRDS(average_pcc, '/home/swg/TNFi_IL17Ai_AS/Rdata/Fig 1g. PCC 계산해놓은 average_pcc, mono 문제 있는 outlier YJS 제외 후.rds')
+# write.csv(patient_cor_results_filtered, '/home/swg/TNFi_IL17Ai_AS/csv_exel/Fig 1g 위한 patient_cor_results_filtered.csv')
+
+
+
+# Fig S1.
+##############
+### Fig S1A. 
+table(SO.Mono.harmony$ident.BASDAI, SO.Mono.harmony$ident.status.specific)
+
+library(dplyr)
+library(tidyr)
+
+unique_metadata <- SO.Mono.harmony@meta.data %>%
+  select(ident.name, ident.status2, ident.ASDAS) %>%
+  distinct()
+
+
+unique_metadata <- unique_metadata %>%
+  filter(!is.na(ident.ASDAS))
+
+wide_metadata <- unique_metadata %>%
+  pivot_wider(names_from = ident.status2, values_from = ident.ASDAS)
+
+long_metadata <- wide_metadata %>%
+  pivot_longer(cols = c('R_Pre', 'R_Post', 'NR_Pre', 'NR_Post'), names_to = 'Condition', values_to = 'ASDAS') %>%
+  drop_na(ASDAS)  
+
+ggplot(data = long_metadata, aes(x = Condition, y = ASDAS, group = ident.name, color = Condition)) +
+  geom_point() +
+  geom_line(aes(group = ident.name), color = "#3D3B40") +
+  scale_color_manual(values = c('R_Pre' = "#2986cc", 'R_Post' = "#2986cc", 'NR_Pre' = "#F67280", 'NR_Post' = "#F67280")) +
+  theme_minimal() +
+  labs(title = "Comparison of ident.ASDAS between Pre and Post Conditions",
+       x = "Condition",
+       y = "ASDAS") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+print(p)
+
+
+
+### Fig S1A. FeaturePlot
+#pdf("~/TNFi_IL17Ai_AS/Figure/Fig S1A.total에서 FeaturePlot.pdf", width=10, height=5) 
+FeaturePlot(SO.tot.harmony, features = c("CD3D", "FAS", "CCR7", "SELL", "TCF7","IL7R", "CD27","CD28","CST7", "GZMH"), ncol = 5, order = T) + NoAxes()
+#ggsave("/home/swg/TNFi_IL17Ai_AS/Figure/Fig S1C.total에서 FeaturePlot.pdf", width=13, height=4)
+
+# Revision 1
+#pdf("~/TNFi_IL17Ai_AS/Figure/Fig S1A.total에서 FeaturePlot.pdf", width=10, height=5) 
+FeaturePlot(SO.tot.harmony, features = c("CD3D", "CD4", "CD8A","FAS", "CCR7", "SELL", "TCF7","IL7R", "CD27","CD28","CST7", "GZMH"), ncol = 4, order = T) + NoAxes()
+ggsave("/home/swg/TNFi_IL17Ai_AS/Figure/Fig S1C. Rev1, total에서 FeaturePlot.pdf", width=10, height=6)
+
+
+
+### Fig S1B.
+#saveRDS(da_results, '/home/swg/TNFi_IL17Ai_AS/Rdata/Fig 1E 위한 batch corrected da_results.rds')
+# da_results <- readRDS('/home/swg/TNFi_IL17Ai_AS/Rdata/Fig 1E 위한 batch corrected da_results.rds')
+ml.tot <- buildNhoodGraph(ml.tot)
+
+library(miloR)
+
+## Find groups
+set.seed(614)
+head(da_results)
+plotNhoodGroups(ml.tot, da_results, size_range = c(1, 8)) 
+
+
+
+
+### Fig S1D.
+SO.tot.harmony <- readRDS('/home/swg/TNFi_IL17Ai_AS/Rdata/240128_SO.tot.TNFi milo 위해 더 자세한 annotation.rds')
+DimPlot(SO.tot.harmony, group.by = 'manual_clusters')
+#ggsave('/home/swg/TNFi_IL17Ai_AS/Figure/Fig S1d. 세부 clustering.pdf',
+#       height = 5, width = 7)
+
+
+### Fig S1E.
+###
+#############
+calculate_correlation <- function(so_object, cell_types, status_col, assay = "RNA", slot = "data") {
+  results <- list()
+  for (cell_type in names(cell_types)) {
+    # 해당 cell type에 대한 데이터 추출
+    subset_data <- subset(so_object, subset = manual_clusters %in% cell_types[[cell_type]])
+    
+    # AggregateExpression을 사용하여 상관 관계 계산
+    av.exp <- AggregateExpression(object = subset_data, group.by = status_col, assay = assay, slot = slot)
+    av.exp.matrix <- as.matrix(av.exp$RNA)
+    cor.exp <- cor(av.exp.matrix)
+    
+    # 필요한 상관 관계 값 추출
+    results[[cell_type]] <- data.frame(
+      Cell_Type = cell_type,
+      R_Pre_Post = cor.exp["R-Pre", "R-Post"],
+      NR_Pre_Post = cor.exp["NR-Pre", "NR-Post"]
+    )
+  }
+  do.call(rbind, results)
+}
+
+SO.tot.TNFi <- readRDS('/home/swg/TNFi_IL17Ai_AS/Rdata/240422_SO.tot.TNFi figure에 들어갈 것들.rds')
+
+cell_types <- list(
+  "T cell" = c("T cell", "Proliferating T_NK"),
+  "NK cell" = c("NK", "Proliferating T_NK"),
+  "CD14 Monocyte" = c("CD14 Monocyte"),
+  "CD16 Monocyte" = c("CD16 Monocyte"),
+  "Monocyte" = c("CD14 Monocyte", "CD16 Monocyte"),
+  "Myeloid" = c("CD14 Monocyte", "CD16 Monocyte", "DC", "pDC"),
+  "DC" = c("DC", "pDC"),
+  "B cell" = c("B cell", "Plasma cell")
+)
+
+
+cor_results <- calculate_correlation(SO.tot.TNFi, cell_types, "ident.status2")
+df <- cor_results %>%
+  pivot_longer(cols = c("R_Pre_Post", "NR_Pre_Post"), names_to = "Treatment", values_to = "Value")
+
+
+df$Treatment <- gsub("_Pre_Post", "", df$Treatment)
+
+
+df$Cell_Type <- factor(df$Cell_Type, levels = c('T cell', 'NK cell', 'B cell', 'Myeloid','Monocyte', 'CD14 Monocyte', "CD16 Monocyte",'DC'))
+df$Treatment <- factor(df$Treatment, levels = c('R', 'NR'))
+
+
+
+pdf("~/TNFi_IL17Ai_AS/Figure/Fig S1D.다양 cell type bulk PCC.pdf", width=5, height=3) 
+ggplot(df, aes(x = Cell_Type, y = Value, color = Treatment, group = Treatment)) +
+  geom_line(aes(color = Treatment)) +
+  geom_point(aes(color = Treatment), size = 2) +
+  scale_color_manual(values = c("R" = "#2986cc", "NR" = "#F67280")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.line = element_line(colour = "black"),
+        panel.border = element_blank(),  # This removes the border
+        panel.grid.major = element_blank()) 
+dev.off()
+#############
+
+patient_cor_results <- calculate_patient_correlation(SO.tot.TNFi, cell_types, "ident.status2")
+
+average_pcc <- patient_cor_results_filtered %>%
+  group_by(Cell_Type, Treatment) %>%
+  summarize(
+    Avg_PCC = mean(PCC, na.rm = TRUE),
+    SE_PCC = sd(PCC, na.rm = TRUE) / sqrt(n())
+  )
+
+average_pcc$Treatment <- factor(average_pcc$Treatment, levels = c("R", "NR"))
+average_pcc$Cell_Type <- factor(average_pcc$Cell_Type, levels = c('T cell', 'NK cell', 'B cell', 'Myeloid','Monocyte', 'CD14 Monocyte', "CD16 Monocyte",'DC'))
+
+View()
+
+
+
+
+
+
+
+
+########
+
+cell_types <- list(
+  "T cell" = c("T cell", "Proliferating T_NK"),
+  "NK cell" = c("NK", "Proliferating T_NK"),
+  "Monocyte" = c("CD14 Monocyte", "CD16 Monocyte"),
+  "DC" = c("DC", "pDC"),
+  "B cell" = c("B cell", "Plasma cell")
+)
+
+
+cor_results <- calculate_correlation(SO.tot.TNFi, cell_types, "ident.status2")
+
+df <- cor_results %>%
+  pivot_longer(cols = c("R_Pre_Post", "NR_Pre_Post"), names_to = "Treatment", values_to = "Value")
+
+df$Treatment <- gsub("_Pre_Post", "", df$Treatment)
+
+df$Cell_Type <- factor(df$Cell_Type, levels = c('T cell', 'NK cell', 'B cell', 'Monocyte', 'DC'))
+
+
+calculate_patient_correlation <- function(so_object, cell_types, status_col, assay = "RNA", slot = "data") {
+  patient_results <- list()
+  for (patient in unique(so_object$ident.name)) {
+    patient_data <- subset(so_object, subset = ident.name == patient)
+    response_type <- patient_data$TNFi_respond[1] # 'R' 또는 'NR'
+    for (cell_type in names(cell_types)) {
+      subset_data <- subset(patient_data, subset = manual_clusters %in% cell_types[[cell_type]])
+      av.exp <- AggregateExpression(object = subset_data, group.by = status_col, assay = assay, slot = slot)
+      av.exp.matrix <- as.matrix(av.exp$RNA)
+      cor.exp <- cor(av.exp.matrix)
+      pcc_value <- cor.exp[paste(response_type, "Pre", sep = "-"), paste(response_type, "Post", sep = "-")]
+      patient_results[[paste(patient, cell_type, sep = "_")]] <- data.frame(
+        Patient = patient,
+        Cell_Type = cell_type,
+        Treatment = response_type,
+        PCC = pcc_value
+      )
+    }
+  }
+  do.call(rbind, patient_results)
+}
+
+
+patient_cor_results <- calculate_patient_correlation(SO.tot.TNFi, cell_types, "ident.status2")
+patient_cor_results$Cell_Type <- factor(patient_cor_results$Cell_Type, levels = c('T cell', 'NK cell', 'B cell', 'Monocyte', 'DC'))
+
+compare_pcc <- function(df, cell_types) {
+  p_values <- data.frame(Cell_Type = character(), p_value = numeric())
+  for (cell_type in cell_types) {
+    cell_data <- subset(df, Cell_Type == cell_type)
+    if (shapiro.test(cell_data$PCC)$p.value > 0.05) {
+      p_value <- t.test(PCC ~ Treatment, data = cell_data)$p.value
+    } else {
+      p_value <- wilcox.test(PCC ~ Treatment, data = cell_data)$p.value
+    }
+    p_values <- rbind(p_values, data.frame(Cell_Type = cell_type, p_value = p_value))
+  }
+  p_values
+}
+
+p_values <- compare_pcc(patient_cor_results, names(cell_types))
+
+patient_cor_results$Treatment <- factor(patient_cor_results$Treatment, levels = c("R", "NR"))
+pdf("~/TNFi_IL17Ai_AS/Figure/Fig S1D.PCC 개인 variation.pdf", width=4, height=2.5) 
+ggplot(patient_cor_results, aes(x = Cell_Type, y = PCC, color = Treatment, group = Patient)) +
+  geom_point() +
+  scale_color_manual(values = c("R" = "#2986cc", "NR" = "#F67280")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.line = element_line(colour = "black"),
+        panel.border = element_blank(),
+        panel.grid.major = element_blank()) 
+dev.off()
+
