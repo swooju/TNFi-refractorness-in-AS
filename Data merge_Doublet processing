@@ -1,0 +1,575 @@
+---
+  title: "AS_TNFi_IL17i_New NR added"
+author: "wgsong"
+date: '231129'
+output: R_script
+---
+  
+  ###
+  g
+getwd()
+setwd("/home/users/songwoogil/OX40_Bispecific_Ab/")
+
+BiocManager::install('Seurat')
+library(Seurat)
+#library(SeuratData)
+library(patchwork)
+library(dplyr)
+library(ggplot2)
+library(glmGamPoi)
+library(sctransform)
+
+library(dplyr)
+library(ggplot2)
+library(magrittr)
+library(tidyr)
+library(ggpubr)
+library(tibble)
+library(SeuratWrappers)
+library(ggpubr)
+library(pheatmap)
+library(stringr)
+library(viridisLite)
+library(viridis) #
+
+
+
+##############
+### RNA
+##############
+
+## ReadCounts, Make SO
+RNA.path <- "/home/users/songwoogil/OX40_Bispecific_Ab/OX40_Bispe/count"
+RNA.all <-  list('/home/swg/TNFi_IL17Ai_AS/231128_new_NR/02_count/NR1_KHS_LTS_KKS_BSL_GEX/outs/filtered_feature_bc_matrix/',
+                 '/home/swg/TNFi_IL17Ai_AS/231128_new_NR/02_count/NR2_KHS_LTS_KKS_1mo_GEX/outs/filtered_feature_bc_matrix/',
+                 '/home/swg/TNFi_IL17Ai_AS/231128_new_NR/02_count/NR3_KJC_PSI_YJS_BSL_GEX/outs/filtered_feature_bc_matrix/',
+                 '/home/swg/TNFi_IL17Ai_AS/231128_new_NR/02_count/NR4_KJC_PSI_YJS_1mo_GEX/outs/filtered_feature_bc_matrix/')
+
+RNA.demux <- list('/home/swg/TNFi_IL17Ai_AS/231128_new_NR/05_demuxlet/HMR1_KHS_LTS_KKS_BSL_GEX.best',
+                  '/home/swg/TNFi_IL17Ai_AS/231128_new_NR/05_demuxlet/HMR2_KHS_LTS_KKS_1mo_GEX.best',
+                  '/home/swg/TNFi_IL17Ai_AS/231128_new_NR/05_demuxlet/HMR3_KJC_PSI_YJS_BSL_GEX.best',
+                  '/home/swg/TNFi_IL17Ai_AS/231128_new_NR/05_demuxlet/HMR3_KJC_PSI_YJS_1mo_GEX.best')
+
+names(RNA.all) <- c('NR1_base', 'NR2_1m', 'NR3_base', 'NR4_1m') 
+names(RNA.all)[[4]]
+
+
+
+## Read raw count
+TIM.all <- list('Desktop/Discovery/MM/counts/filtered_feature_bc_matrix1',
+                'Desktop/Discovery/MM/counts/filtered_feature_bc_matrix2',
+                'Desktop/Discovery/MM/counts/filtered_feature_bc_matrix3',
+                'Desktop/Discovery/MM/counts/filtered_feature_bc_matrix4',
+                'Desktop/Discovery/MM/counts/filtered_feature_bc_matrix5',
+                'Desktop/Discovery/MM/counts/filtered_feature_bc_matrix6',
+                'Desktop/Discovery/MM/counts/filtered_feature_bc_matrix7',
+                'Desktop/Discovery/MM/counts/filtered_feature_bc_matrix8',
+                'Desktop/Discovery/MM/counts/filtered_feature_bc_matrix9',
+                'Desktop/Discovery/MM/counts/filtered_feature_bc_matrix10')
+
+TIM.demux <- list('Desktop/discovery/MM/220404/demuxlet/BM1_415_503_506_528_GEX.best',
+                  'Desktop/discovery/MM/220404/demuxlet/BM2_400_500_600_700_GEX.best',
+                  'Desktop/discovery/MM/220404/demuxlet/BM3_800_504_5_7_GEX.best',
+                  'Desktop/discovery/MM/220404/demuxlet/BM4_8_10_442_477_GEX.best',
+                  'Desktop/discovery/MM/220404/demuxlet/BM5_489_450_465_470_GEX.best',
+                  'Desktop/discovery/MM/220404/demuxlet/BM6_471_526_476_469_GEX.best',
+                  'Desktop/discovery/MM/220404/demuxlet/BM7_476_469_480_483_GEX.best',
+                  'Desktop/discovery/MM/220404/demuxlet/BM8_2_513_460_416_GEX.best',
+                  'Desktop/discovery/MM/220404/demuxlet/BM9_455_479_491_4_GEX.best',
+                  'Desktop/discovery/MM/220404/demuxlet/BM10_480_483_1_3_GEX.best')
+
+names(TIM.all) <- c("BM01_415_503_506_528", "BM02_400_500_600_700", "BM03_800_504_5_7", "BM04_8_10_442_477",
+                    "BM05_489_450_465_470", "BM06_471_526_476_469", "BM07_476_469_480_483", "BM08_2_513_460_416",
+                    "BM09_455_479_491_4", "BM10_480_483_1_3")
+TIM.all
+
+
+getwd()
+
+as.character(RNA.all[[1]])
+
+for(i in 1:length(RNA.all)){
+  tmp.matrix <- as.character(RNA.all[[i]])
+  tmp.matrix <- Read10X(tmp.matrix) ##
+  
+  tmp <- CreateSeuratObject(counts = tmp.matrix, project = "TNFi_NR_added")
+  
+  tmp.demux <- as.character(RNA.demux[[i]])
+  tmp.demux <- read.csv(file = tmp.demux, sep = "\t", header = TRUE) ##
+  tmp.demux <- tmp.demux %>% mutate(., singlet = sapply(str_split(tmp.demux$BEST, "-"), "[", 1))
+  tmp.demux <- tmp.demux %>% filter(., BARCODE %in% colnames(tmp))
+  # %>% filter(., singlet == "SNG")
+  tmp <- tmp[, tmp.demux$BARCODE]
+  
+  tmp$orig.gem <- names(RNA.all[i])
+  tmp$singlet.demux <- tmp.demux$singlet
+  tmp$ident.demux <- tmp.demux$SNG.1ST
+  
+  if(i == 1){
+    SO.RNA <- tmp
+  } else{
+    SO.RNA <- merge(SO.RNA, y = tmp)
+  }
+  
+  rm(tmp.matrix)
+  rm(tmp.demux)
+  rm(tmp)
+}
+
+rm(RNA.all)
+rm(RNA.demux)
+
+###
+
+SO.RNA$ident.sample <- paste(SO.RNA$ident.Ab, SO.RNA$ident.name, sep = '_')
+table(SO.RNA.sct$ident.sample)
+
+SO.RNA$ident.Ab <- SO.RNA$orig.gem
+
+## Metadata validation 
+table(SO.RNA$ident.dz, SO.RNA$ident.name) %>% as.data.frame() %>% filter(., Freq > 0)
+table(SO.RNA$ident.name, SO.RNA$singlet.demux) %>% as.data.frame() %>% filter(., Freq > 0)
+
+
+SO.RNA.spare <- SO.RNA
+SO.RNA$TNFi_respond <- NA
+SO.RNA$TNFi_respond <- 'NR'
+SO.RNA$ident.drug <- 'TNFi'
+SO.RNA$ident.name <- SO.RNA$ident.demux
+
+SO.RNA$ident.status <- NA
+SO.RNA$ident.status2 <- NA
+SO.RNA$ident.status3 <- NA
+
+SO.RNA$ident.status[SO.RNA$orig.gem == 'NR1_base'] <- 'Pre_TNFi'
+SO.RNA$ident.status[SO.RNA$orig.gem == 'NR2_1m'] <- 'Post_TNFi'
+SO.RNA$ident.status[SO.RNA$orig.gem == 'NR3_base'] <- 'Pre_TNFi'
+SO.RNA$ident.status[SO.RNA$orig.gem == 'NR4_1m'] <- 'Post_TNFi'
+
+SO.RNA$ident.status3[SO.RNA$orig.gem == 'NR1_base'] <- 'Pre'
+SO.RNA$ident.status3[SO.RNA$orig.gem == 'NR2_1m'] <- 'Post'
+SO.RNA$ident.status3[SO.RNA$orig.gem == 'NR3_base'] <- 'Pre'
+SO.RNA$ident.status3[SO.RNA$orig.gem == 'NR4_1m'] <- 'Post'
+
+SO.RNA$ident.status2[SO.RNA$orig.gem == 'NR1_base'] <- 'NR_Pre'
+SO.RNA$ident.status2[SO.RNA$orig.gem == 'NR2_1m'] <- 'NR_Post'
+SO.RNA$ident.status2[SO.RNA$orig.gem == 'NR3_base'] <- 'NR_Pre'
+SO.RNA$ident.status2[SO.RNA$orig.gem == 'NR4_1m'] <- 'NR_Post'
+
+SO.RNA$ident.sample <- paste(SO.RNA$ident.name, SO.RNA$ident.status3, sep = '_')
+
+SO.RNA$ident.status.specific <- paste(SO.RNA$TNFi_respond, SO.RNA$ident.sample, sep = '_')
+
+table(SO.RNA$ident.status.specific, SO.RNA$ident.demux)
+
+SO.RNA$ident.methods <- NA
+SO.RNA$ident.methods <- 'new'
+
+rm(rna.list)
+
+
+SO.RNA.sng <- subset(SO.RNA, singlet.demux%in% c("SNG", "AMB")) 
+SO.RNA.spare <- SO.RNA
+SO.RNA <- SO.RNA.sng
+rm(SO.RNA.sng)
+
+## Metadata validation 
+table(SO.RNA$ident.status2, SO.RNA$ident.name, SO.RNA$singlet.demux, SO.RNA$ident.status, SO.RNA$ident.status3) %>% as.data.frame() %>% filter(., Freq > 0)
+table(SO.RNA$ident.status2, SO.RNA$ident.name, SO.RNA$ident.status, SO.RNA$ident.status3) %>% as.data.frame() %>% filter(., Freq > 0)
+
+table(SO.RNA$ident.name, SO.RNA$singlet.demux) %>% as.data.frame() %>% filter(., Freq > 0)
+
+
+saveRDS(SO.RNA, file = "/home/swg/TNFi_IL17Ai_AS/Rdata/231129_new_NR filtering 전 SO.rds")
+
+
+
+## Preprocessing
+# QC metrics and filter cells 
+SO.RNA[["percent.mt"]] <- PercentageFeatureSet(SO.RNA, pattern = "^MT-")
+VlnPlot(SO.RNA, features = c("nCount_RNA", "nFeature_RNA", "percent.mt"), ncol = 3, pt.size = 0, group.by = "orig.ident")
+p1 <- VlnPlot(SO.RNA, features = c("nCount_RNA", "nFeature_RNA", "percent.mt"), ncol = 3, pt.size = 0, group.by = "ident.name")
+VlnPlot(SO.RNA, features = c("nCount_RNA", "nFeature_RNA", "percent.mt"), ncol = 3, pt.size = 0, group.by = "ident.sample")
+VlnPlot(SO.RNA, features = c("nCount_RNA", "nFeature_RNA", "percent.mt"), ncol = 3, pt.size = 0, group.by = "orig.gem")
+
+p2 <- VlnPlot(SO.RNA, features = c("nCount_RNA", "nFeature_RNA", "percent.mt"), ncol = 3, pt.size = 0, group.by = "ident.Ab")
+CombinePlots(list(p1, p2))
+
+p1
+p1 <- VlnPlot(SO.RNA, features = 'percent.mt', pt.size = 0, group.by = "ident.name", y.max = 5)
+p2 <- VlnPlot(SO.RNA, features = 'percent.mt', pt.size = 0, group.by = "ident.Ab", y.max = 5)
+
+
+# 
+Idents(SO.RNA) <- "orig.gem" 
+FeatureScatter(SO.RNA, feature1 = "nCount_RNA", feature2 = "percent.mt", pt.size = 0.1) +
+  ylim(0,15) +
+  xlim(0,20000) +
+  geom_hline(yintercept = c(0,10), linetype = "dashed") 
+
+FeatureScatter(SO.RNA, feature1 = "percent.mt", feature2 = "nFeature_RNA", pt.size = 0.1) + 
+  ylim(0,8000) +
+  xlim(0,15) +
+  geom_hline(yintercept = c(500, 6500), linetype = "dashed") +
+  geom_vline(xintercept = c(0, 10), linetype = "dashed") 
+
+
+saveRDS(SO.RNA, file = "/home/swg/TNFi_IL17Ai_AS/Rdata/231129_new_NR filtering 후 SO.rds")
+#####
+
+
+
+SO.tot <- merge(SO.tot.harmony, y=SO.RNA)
+
+head(colnames(SO.RNA))
+ncol(SO.RNA)
+ncol(SO.tot.harmony)
+head(colnames(SO.tot.harmony))
+
+table(SO.tot$ident.sample, SO.tot$ident.status.specific)
+table(SO.tot$ident.sample)
+table(SO.tot$ident.status.specific)
+
+
+DefaultAssay(SO.tot) <- 'RNA'
+SO.tot <- SO.tot %>%
+  NormalizeData(verbose = FALSE) %>%
+  FindVariableFeatures(selection.method = "vst")
+
+SO.tot.harmony <- SO.tot %>%
+  ScaleData(verbose = FALSE) %>% 
+  RunPCA(verbose = FALSE)
+library(harmony)
+SO.tot.harmony <- RunHarmony(SO.tot.harmony, group.by.vars = 'ident.sample')
+SO.tot.harmony <- RunUMAP(SO.tot.harmony, reduction = "harmony", dims = 1:30)
+SO.tot.harmony <- FindNeighbors(SO.tot.harmony, reduction = "harmony", dims = 1:30) %>% FindClusters(resolution =0.8)
+
+DimPlot(SO.tot.harmony, label = T)
+
+saveRDS(SO.tot.harmony, file = "/home/swg/TNFi_IL17Ai_AS/Rdata/231129_new_NR 추가해서 umap.rds")
+
+DimPlot(SO.tot.harmony, label = T)
+
+
+
+SO.tot <- SO.test2
+
+
+SO.tot.harmony  <- merge(x = rna.list[[1]], y = rna.list[2:length(rna.list)], merge.data=TRUE)
+VariableFeatures(SO.tot.harmony) <- features
+
+DefaultAssay(SO.tot.harmony) <- 'RNA'
+SO.tot.harmony <- SO.tot.harmony %>%
+  NormalizeData() %>% ScaleData() 
+VariableFeatures(SO.tot.harmony) <- features
+SO.tot.harmony  <- RunPCA(SO.tot.harmony , verbose = FALSE)
+
+library(harmony) 
+SO.tot.harmony  <- RunHarmony(SO.tot.harmony , assay.use="RNA", group.by.vars = "ident.sample", max.iter.harmony = 50)
+SO.tot.harmony  <- RunUMAP(SO.tot.harmony , reduction = "harmony", dims = 1:30)
+SO.tot.harmony  <- FindNeighbors(SO.tot.harmony , reduction = "harmony", dims = 1:30) %>% FindClusters(resolution =0.8)
+DimPlot(SO.tot.harmony)
+rm(obj.list, rna.list)
+
+
+DotPlot(SO.test, features = c("CD3D", "CD3E", "CD4", "CD8A","CD14", "S100A9", "CD19", "MS4A1","NKG7", "GNLY", "PPBP", "GNG11", "nFeature_RNA")) + scale_color_viridis() + RotatedAxis()
+
+###
+SO.TNK <- subset(SO.tot.harmony, seurat_clusters %in% c("0", "23", "5", "10", "16",
+                                                        "7", "21", "15", "20",
+                                                        "3", "6", "11", "12"))
+
+DimPlot(SO.test, label = T)
+dittoBarPlot(SO.test, group.by = 'seurat_clusters', var = 'orig.gem')
+
+
+SO.test2 <- FindClusters(SO.tot.harmony, resolution = 1.2)
+
+table(SO.test$manual_clusters)
+
+SO.test$manual_clusters <- SO.test@active.ident
+table(SO.test$manual_clusters, SO.test$seurat_clusters)
+
+DimPlot(SO.test,label = T)
+
+Idents(SO.test) <- 'manual_clusters'
+SO.test$manual_clusters <- factor(SO.test$manual_clusters, 
+                                  levels = c("T cells", "Proliferating T", "NK",
+                                             "B cells", "Plasma cells",
+                                             "CD14 Mono", "CD16 Mono", "DC", "pDC", "Undefined"))
+
+saveRDS(SO.tot.harmony, file = "/home/swg/TNFi_IL17Ai_AS/Rdata/231201_SO.tot.harmony anno까지 완료는 했는데, 이전 mono 31, 34 추가할 필요 있음.rds")
+
+SO.Mono <- subset(SO.tot.harmony, manual_clusters %in% c("CD14 Mono", "CD16 Mono", "DC")) 
+
+
+dittoBarPlot(SO.test, var = 'manual_clusters', group.by = 'orig.ident')
+dittoBarPlot(SO.test, var = 'manual_clusters', group.by = 'ident.status.specific', retain.factor.levels = T)
+
+
+#######################
+#### 
+DefaultAssay(SO.Mono) <- 'RNA'
+library(sctransform)
+library(glmGamPoi)
+
+SO.Mono <- NormalizeData(SO.Mono) 
+obj.list <- SplitObject(SO.Mono, split.by="ident.sample")
+rna.list <- lapply(X = obj.list, function(x){
+  x <- SCTransform(x, vst.flavor = "v2", verbose = FALSE, 
+                   method = "glmGamPoi", return.only.var.genes = F, min_cells = 0)
+}) 
+features <- SelectIntegrationFeatures(object.list = rna.list, nfeatures = 3000) # 3100개도 가눙
+
+SO.Mono.harmony  <- merge(x = rna.list[[1]], y = rna.list[2:length(rna.list)], merge.data=TRUE)
+#VariableFeatures(SO.Mono.harmony) <- features
+
+#DefaultAssay(SO.Mono.harmony) <- 'RNA'
+#SO.Mono.harmony <- SO.Mono.harmony %>%
+#  NormalizeData() %>% ScaleData() 
+#VariableFeatures(SO.Mono.harmony) <- features
+#SO.Mono.harmony  <- RunPCA(SO.Mono.harmony , verbose = FALSE)
+
+#library(harmony) 
+#SO.Mono.harmony  <- RunHarmony(SO.Mono.harmony , assay.use="RNA", group.by.vars = "ident.sample", max.iter.harmony = 50)
+#SO.Mono.harmony  <- RunUMAP(SO.Mono.harmony , reduction = "harmony", dims = 1:30)
+#SO.Mono.harmony  <- FindNeighbors(SO.Mono.harmony , reduction = "harmony", dims = 1:30) %>% FindClusters(resolution =0.8)
+#DimPlot(SO.Mono.harmony)
+
+SO.tot.harmony <- merge(x = rna.list[[1]], y = rna.list[2:length(rna.list)], merge.data=TRUE)
+DefaultAssay(SO.tot.harmony) <- 'SCT'
+VariableFeatures(SO.tot.harmony) <- features
+SO.tot.harmony <- RunPCA(SO.tot.harmony, assay = 'SCT',verbose = FALSE)
+
+#SO.test <- RunUMAP(SO.tot.harmony, reduction = "pca", dims = 1:30, verbose = FALSE) 
+#SO.test <- FindNeighbors(SO.test, reduction = "pca", dims = 1:30)
+# SO.test <- FindClusters(SO.test, resolution = 0.3)
+
+library(harmony)
+SO.tot.harmony <- RunHarmony(SO.tot.harmony, assay.use="SCT", group.by.vars = c("orig.ident", "ident.sample"))
+SO.tot.harmony <- RunUMAP(SO.tot.harmony, reduction = "harmony", dims = 1:30)
+SO.tot.harmony <- FindNeighbors(SO.tot.harmony, reduction = "harmony", dims = 1:30) %>% FindClusters(resolution = c(0.2, 0.4, 0.6, 0.8, 1.0, 1.2))
+
+rm(obj.list, rna.list)
+
+saveRDS(SO.Mono.harmony, file = "/home/swg/TNFi_IL17Ai_AS/Rdata/231201_New까지 추가한 SO.Myd.harmony.rds")
+
+DimPlot(SO.Mono.small, label = T)
+
+SO.Myd.harmony <- SO.Mono.harmony
+SO.Mono.harmony <- subset(SO.Mono.harmony, manual_clusters %in% c("DC"), invert = T)
+
+DimPlot(SO.Mono.harmony, label = T)
+DimPlot(SO.Myd.harmony, label = T, split.by = 'orig.ident')
+
+DefaultAssay(SO.Mono.harmony)
+DimPlot(SO.Mono.harmony, )
+
+test <- SO.Myd.harmony
+
+
+SO.Myd.harmony <- subset(SO.Myd.harmony, seurat_clusters %in% c("11"), invert = T)
+SO.Mono.small <- subset(SO.Mono.small, seurat_clusters %in% c("31"))
+DimPlot(SO.Mono.small, label = T)
+SO.tot.harmony <- merge(SO.tot.harmony, y=SO.Mono.small)
+DimPlot(SO.tot.harmony, label = T)
+
+saveRDS(SO.tot.harmony, file = "/home/swg/TNFi_IL17Ai_AS/Rdata/231202_SO.tot.harmony, 다시 variable gene 잡고 clustering할 것.rds")
+
+SO.Myd.harmony  <- RunUMAP(SO.Myd.harmony , reduction = "harmony", dims = 1:30)
+SO.Myd.harmony  <- FindNeighbors(SO.Myd.harmony , reduction = "harmony", dims = 1:30) %>% FindClusters(resolution =0.8)
+
+DimPlot(SO.Myd.harmony, label = T)
+
+
+
+
+
+
+
+##################
+#### TNK
+SO.TNK <- SO.TNK %>%
+  NormalizeData(verbose = FALSE) %>%
+  FindVariableFeatures(selection.method = "vst", nfeatures = 3000)
+
+SO.TNK.harmony <- SO.TNK %>%
+  ScaleData(verbose = FALSE) %>% 
+  RunPCA(verbose = FALSE)
+library(harmony)
+SO.TNK.harmony <- RunHarmony(SO.TNK.harmony, group.by.vars = 'ident.sample')
+SO.TNK.harmony <- RunUMAP(SO.TNK.harmony, reduction = "harmony", dims = 1:30)
+SO.TNK.harmony <- FindNeighbors(SO.TNK.harmony, reduction = "harmony", dims = 1:30) %>% FindClusters(resolution =0.8)
+
+DimPlot(SO.TNK.harmony, label = T)
+
+
+FeaturePlot(SO.TNK.harmony, features = c("CD3D", "CD3E", "FCGR3A", "TYROBP"))
+table(SO.TNK.harmony$ident.sample)
+
+
+###########
+obj.list <- SplitObject(SO.RNA, split.by = "ident.sample") 
+rna.list <- lapply(X = obj.list, function(x){
+  x <- SCTransform(x, vst.flavor = "v2", verbose = FALSE,
+                   method = "glmGamPoi")
+})
+
+features <- SelectIntegrationFeatures(object.list = rna.list, nfeatures = 3000)
+rna.list <- PrepSCTIntegration(object.list = rna.list, anchor.features = features)
+
+anchors.sct.norm <- FindIntegrationAnchors(object.list = rna.list, 
+                                           normalization.method = "SCT",
+                                           anchor.features = features) 
+test.sct <- IntegrateData(anchorset = anchors.sct.norm, normalization.method = "SCT")
+
+test.sct <- RunPCA(test.sct, verbose = FALSE)
+test.sct <- RunUMAP(test.sct, reduction = "pca", dims = 1:30)
+test.sct <- FindNeighbors(test.sct, reduction = "pca", dims = 1:30)
+test.sct <- FindClusters(test.sct, resolution = 0.3) # leiden
+
+DimPlot(test.sct, split.by = 'ident.name')
+DimPlot(SO.RNA.sct, split.by = 'ident.Ab')
+
+DefaultAssay(SO.RNA.sct) <- 'RNA'
+SO.RNA.sct <- NormalizeData(SO.RNA.sct)
+FeaturePlot(SO.RNA.sct, features = c("CD3D", "CD3E", "CD4", "CD8A"))
+
+install.packages("leiden")
+library(leiden)
+library(igraph)
+library(pip, lib.loc = '/home/users/songwoogil/R/x86_64-conda-linux-gnu-library/4.1')
+
+SO.RNA.sct <- FindClusters(SO.RNA.sct, resolution = 0.3, algorithm = 4) # leiden
+a <- as(SO.RNA.sct[["integrated_snn"]], "igraph")
+a <- graph_from_adjacency_matrix(as.matrix(SO.RNA.sct[["integrated_snn"]]), mode = "undirected")
+
+install.packages('reticulate', lib = '/home/users/songwoogil/anaconda3/envs/')
+install.packages('reticulate')
+library(reticulate, lib.loc = '/home/users/songwoogil/anaconda3/envs/')
+py_install('leidenalg', method = 'conda')
+library(reticulate)
+py_install('umap-learn', method = 'conda')
+library(umap-learn)
+
+# Use the leiden function from the leiden package
+membership <- leiden(a, module = 'leidenalg')
+
+# Add the clusters to the Seurat object
+seurat.object <- AddMetaData(SO.RNA.sct, metadata = membership, col.name = "Leiden")
+
+# Now you can use the Seurat functions to work with these clusters
+VlnPlot(SO.RNA.sct, features = "nFeature_RNA", group.by = "Leiden")
+
+
+DefaultAssay(test.sct) <- 'RNA'
+test.sct <- NormalizeData(test.sct)
+FeaturePlot(test.sct, features = c("RORC", "FOXP3", "TNFRSF4", "TNFRSF18", "IL17A", "IFNG"))
+
+SO.RNA.sct.consistent <- PrepSCTFindMarkers(SO.RNA.sct,assay = 'SCT') 
+
+save.image("~/AIM4/script/230207_RNA_SCTransform.RData")
+
+SO.RNA.tot <- SO.RNA.sct.consistent
+rm(SO.RNA.sct, SO.RNA.sct.consistent, obj.list, rna.list, anchors.sct.norm)
+DimPlot(SO.RNA.tot, label = T)
+DimPlot(SO.RNA.tot, label = T)
+VlnPlot(SO.RNA.tot, features = c("nCount_RNA", "nFeature_RNA", "percent.mt"), pt.size = 0)
+
+
+DefaultAssay(SO.RNA.tot) <- 'RNA'
+SO.RNA.tot <- NormalizeData(SO.RNA.tot)
+FeaturePlot(SO.RNA.tot, features = c('CD8A', "CD4"))
+
+DimPlot(SO.RNA.tot, split.by = 'orig.ident', ncol = 4)
+
+
+
+
+
+
+
+##### 
+######
+# Calculate average expression per sample
+SO.CD4.TNFi <- NormalizeData(SO.CD4.TNFi)
+SO.Myd.TNFi <- NormalizeData(SO.Myd.TNFi)
+
+avgExpression <- Seurat::AverageExpression(SO.CD4.TNFi, assays = 'RNA', slot = 'data',features = rownames(SO.CD4.TNFi), group.by = "ident.sample")
+avgExpression <- Seurat::AverageExpression(SO.Myd.TNFi, assays = 'RNA', slot = 'data',features = rownames(SO.Myd.TNFi), group.by = "ident.sample")
+avgExpression <- Seurat::AverageExpression(SO.CD4.TNFi, assays = 'RNA', slot = 'data',features = rownames(SO.CD4.TNFi), group.by = "ident.status2")
+avgExpression <- Seurat::AverageExpression(SO.Myd.TNFi, assays = 'RNA', slot = 'data',features = rownames(SO.Myd.TNFi), group.by = "ident.status2")
+avgExpression <- Seurat::AverageExpression(SO.CD8.TNFi, assays = 'RNA', slot = 'data',features = rownames(SO.CD8.TNFi), group.by = "ident.status2")
+avgExpression <- Seurat::AverageExpression(SO.CD4.TNFi, assays = 'RNA', slot = 'data',features = rownames(SO.CD4.TNFi), group.by = "ident.status.specific")
+
+table(SO.CD4.TNFi$ident.sample, SO.CD4.TNFi$ident.status.specific)
+
+
+# Convert the list to a data frame
+avgExpression_df <- as.data.frame(avgExpression)
+
+# Transpose the data frame so that samples are rows and genes are columns
+avgExpression_df <- t(avgExpression_df)
+
+# Remove constant or zero-variance columns
+avgExpression_df <- avgExpression_df[, apply(avgExpression_df, 2, var) != 0]
+
+# Perform PCA on the average expression data
+pca_res <- prcomp(avgExpression_df, scale. = TRUE)
+
+# Convert the PCA results to a data frame for ggplot
+pca_df <- as.data.frame(pca_res$x)
+pca_df$Sample <- rownames(pca_df)
+pca_df$Sample <- sub("RNA.", "", pca_df$Sample)
+# pca_df$Sample <- sub("integrated.", "", pca_df$Sample)
+
+# Plot the PCA results with labels and lines
+ggplot(pca_df, aes(PC1, PC2, color = Sample)) +
+  geom_point(size = 2) +
+  geom_text_repel(aes(label = Sample), size = 4) + # 조건 좀 더 줄이면 글씨 6 해도 된다.
+  geom_segment(aes(x = PC1, y = PC2, xend = PC1 + 0.1, yend = PC2 + 0.1), arrow = arrow(length = unit(0.2, "cm")), alpha = 0.4) +
+  theme_minimal() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"), text = element_text(size = 12)) +
+  labs(x = "PC1", y = "PC2", color = "Sample")
+
+ggplot(pca_df, aes(PC2, PC3, color = Sample)) +
+  geom_point(size = 2) +
+  geom_text_repel(aes(label = Sample), size = 4) +
+  geom_segment(aes(x = PC2, y = PC3, xend = PC2 + 0.1, yend = PC3 + 0.1), arrow = arrow(length = unit(0.2, "cm")), alpha = 0.4) +
+  theme_minimal() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"), text = element_text(size = 12)) +
+  labs(x = "PC2", y = "PC3", color = "Sample")
+
+ggplot(pca_df, aes(PC4, PC6, color = Sample)) +
+  geom_point(size = 2) +
+  geom_text_repel(aes(label = Sample), size = 4) +
+  geom_segment(aes(x = PC4, y = PC6, xend = PC4 + 0.1, yend = PC6 + 0.1), arrow = arrow(length = unit(0.2, "cm")), alpha = 0.4) +
+  theme_minimal() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"), text = element_text(size = 12)) +
+  labs(x = "PC4", y = "PC6", color = "Sample")
+
+
+# Get the loadings from the PCA result
+loadings <- pca_res$rotation
+
+# Get the genes corresponding to PC1
+PC1_genes <- loadings[order(loadings[, "PC1"], decreasing = TRUE), "PC1"]
+names(PC1_genes)
+# Select the top 10 genes
+top_genes <- head(names(PC1_genes), 10)
+
+# Subset the expression data for these genes
+expr_subset <- SO.CD4.TNFi@assays$RNA@data[names(top_genes), ]
+
+# Scale the expression data
+expr_subset <- t(scale(t(expr_subset)))
+
+# Load the ComplexHeatmap package
+library(ComplexHeatmap)
+
+# Create a Heatmap object
+heatmap <- Heatmap(expr_subset, name = "expression", show_column_names = FALSE, show_row_names = TRUE, cluster_rows = TRUE, cluster_columns = FALSE)
+
+# Draw the heatmap
+draw(heatmap, heatmap_legend_side = "bot")
+
