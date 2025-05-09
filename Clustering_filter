@@ -1,0 +1,815 @@
+###
+pbmcsca.list <- SplitObject(SO.tot.harmony, split.by="ident.name")
+pbmcsca.list <- lapply(X = pbmcsca.list, 
+                       FUN = function(x) {
+                         x <- SCTransform(x, vars.to.regress = "percent.mt", verbose = TRUE,
+                                          method = "glmGamPoi", 
+                                          return.only.var.genes = FALSE)
+                         
+                       })
+
+var.features <- SelectIntegrationFeatures(object.list = pbmcsca.list, nfeatures = 3000)
+pbmcsca.sct <- merge(x = pbmcsca.list[[1]], y = pbmcsca.list[2:length(pbmcsca.list)], merge.data=TRUE)
+
+VariableFeatures(pbmcsca.sct) <- var.features 
+pbmcsca.sct <- RunPCA(pbmcsca.sct, verbose = FALSE)
+pbmcsca.sct <- RunHarmony(pbmcsca.sct, assay.use="SCT", group.by.vars = "ident.name")
+pbmcsca.sct <- RunUMAP(pbmcsca.sct, reduction = "harmony", dims = 1:30)
+pbmcsca.sct <- FindNeighbors(pbmcsca.sct, reduction = "harmony", dims = 1:30) %>% FindClusters()
+DimPlot(pbmcsca.sct, split.by = 'ident.name', ncol = 5)
+FeaturePlot(pbmcsca.sct, features = "FOXP3")
+
+SO.tot.harmony <- pbmcsca.sct
+DimPlot(SO.tot.harmony, label = T)
+DimPlot(SO.tot.harmony, split.by = 'ident.name', ncol = 5)
+
+save.image("~/AS_Therapy/script/230116_tot_SCTv1.RData")
+
+
+DimPlot(SO.tot.harmony, label = T)
+
+DefaultAssay(SO.tot.harmony) <- 'RNA'
+SO.tot.harmony <- NormalizeData(SO.tot.harmony)
+SO.tot.harmony <- ScaleData(SO.tot.harmony)
+FeaturePlot(SO.tot.harmony, features = tutorial.mk, ncol= 5)
+DotPlot(SO.tot.harmony, features = tutorial.mk, cols = c("lightgrey", "red"), dot.scale = 8) +
+  RotatedAxis()
+DotPlot(SO.tot.harmony, features = MtP.1, cols = c("lightgrey", "red"), dot.scale = 8) +
+  RotatedAxis()
+
+
+DefaultAssay(SO.tot.harmony) <- 'SCT'
+DefaultAssay(SO.tot.harmony) <- 'RNA'
+FeaturePlot(SO.tot.harmony, features = tot.FP.mk, ncol = 5)
+
+test <- RunUMAP(SO.tot.harmony, dims = 1:35)
+test <- RunUMAP(SO.tot.harmony, reduction = 'harmony', dims = 1:35)
+
+DimPlot(test)
+FeaturePlot(test, features = tot.FP.mk, ncol = 5)
+SO.tot.harmony <- test1
+rm(test1)
+
+DefaultAssay(SO.tot.harmony) <- 'RNA'
+FeaturePlot(SO.tot.harmony, features = tot.FP.mk, ncol = 5)
+
+test <- RunPCA(SO.tot.harmony, npcs = 35, verbose = F)
+test <- RunUMAP(test, reduction = "harmony", dims = 1:20)
+
+DefaultAssay(test) <- 'RNA'
+FeaturePlot(test, features = tot.FP.mk, ncol = 5)
+save.image("~/AS_Therapy/script/230119_total good.RData")
+
+
+DimPlot(SO.tot.harmony, label = T)
+
+test1 <- FindClusters(SO.tot.harmony, resolution = 0.2)
+test1 <- FindClusters(test1, resolution = 0.4)
+test1 <- FindClusters(test1, resolution = 0.5)
+
+DefaultAssay(SO.tot.harmony) <- 'RNA'
+DimPlot(SO.tot.harmony, label = T)
+DimPlot(test1, label = T)
+FeaturePlot(test1, features = c("CD3D", "CD3E", "TRAC", "FOXP3"))
+FeaturePlot(test1, features = c("GNLY", "NKG7", "XCL1", "FCGR3A"))
+DotPlot(test1, features = c("GNLY", "NKG7", "XCL1", "FCGR3A"))
+DefaultAssay(test1) <- 'RNA'
+DotPlot(test1, features = c("GNLY", "NKG7", "XCL1", "FCGR3A", "percent.mt", "nCount_RNA"))
+
+DotPlot(test1, features = tutorial.mk, cols = c("lightgrey", "red")) + RotatedAxis()
+
+DotPlot(SO.tot.harmony, features = c("GNLY", "NKG7", "XCL1", "FCGR3A"))
+a <- FindMarkers(SO.tot.harmony, ident.1 = '12', ident.2 = '8')
+a 
+a <- rownames_to_column(a, "Genes")
+getwd()
+write.xlsx(a, 'between NK mk.xlsx')
+
+
+FeaturePlot(SO.tot.harmony, features = NK.mk) 
+# KLRC1(NKG2A), KLRB1(CD161)
+
+DimPlot(SO.tot.harmony, label = T)
+Idents(SO.tot.harmony) <- 'SCT_snn_res.0.8'
+DotPlot(SO.tot.harmony, features = tutorial.mk, cols = c("lightgrey", "red")) + RotatedAxis()
+
+Idents(SO.tot.harmony) <- 'SCT_snn_res.0.4'
+DefaultAssay(SO.tot.harmony) <- 'SCT'
+test <- FindClusters(SO.tot.harmony, resolution = 0.5)
+DimPlot(test, label = T)
+
+
+
+# 1) Total
+test <- SO.tot.harmony
+
+DefaultAssay(test) <- 'RNA'
+VlnPlot(test, features = c('nCount_RNA', 'nFeature_RNA', 'percent.mt'), pt.size = 0, ncol = 2)
+
+Idents(test) <- 'ident.name'
+Idents(test) 
+test1 <- subset(test, idents = c("AWJ", "JYC"))
+DimPlot(test1)
+DimPlot(test1, split.by = 'ident.sample')
+Idents(test1) <- 'manual_clusters'
+a <- FindAllMarkers(test1, only.pos = T)
+
+DefaultAssay(test1) <- "RNA"
+b <- FindConservedMarkers(test1, ident.1 = 'Doublet', grouping.var = "ident.name", verbose = T)
+
+c <- FindMarkers(test1, ident.1 = 'Doublet', ident.2 = 'B cell')
+
+
+SO.tot.harmony <- test
+Idents(SO.tot.harmony) <- 'manual_clusters'
+rm(test, test1)
+save.image("~/AS_Therapy/script/230121_tot_UC 빼기 전.RData")
+
+SO.tot.harmony <- subset(SO.tot.harmony, idents = 'Doublet', invert = T)
+DimPlot(SO.tot.harmony, label = T) + NoLegend()
+
+SO.tot.harmony$ident.status2 <- paste(SO.tot.harmony$TNFi_respond, SO.tot.harmony$ident.status, sep = '_')
+
+Idents(SO.tot.harmony) <- 'ident.status2'
+levels(as.factor(Idents(SO.tot.harmony))) 
+SO.tot.harmony$ident.status2 <- factor(SO.tot.harmony$ident.status2,
+                                       levels = c("bad_Bf_TNFi", "bad_Af_TNFi", "bad_Bf_IL17i", "bad_Af_IL17i",
+                                                  "good_Bf_TNFi", "good_Af_TNFi"))
+tot.level <- c("T cell", "NK cell", "Cytotoxic NK cell","Proliferating T/NK",
+               "CD14 Monocyte", "CD16 Monocyte", "DC", "pDC", "B cell",
+               "Mk", "Mono/Mk doublet", "RBC")
+SO.tot.harmony$manual_clusters <- factor(SO.tot.harmony$manual_clusters,
+                                         levels = tot.level)
+
+Idents(SO.tot.harmony) <- 'manual_clusters'
+
+tot.manual_prop <- table(SO.tot.harmony$manual_clusters, SO.tot.harmony$ident.status2)
+library(openxlsx)
+getwd()
+write.xlsx(tot.manual_prop, 'tot.manual_prop.xlsx')
+
+
+
+Idents(SO.tot.harmony) <- 'TNFi_respond'
+good.cells <- WhichCells(SO.tot.harmony, idents = 'good')
+bad.cells <- WhichCells(SO.tot.harmony, idents = 'bad')
+
+good.cells
+Idents(SO.tot.harmony) 
+DimPlot(SO.tot.harmony, cells = good.cells, split.by = 'ident.sample')
+DimPlot(SO.tot.harmony, cells = good.cells)
+
+
+BiocManager::install("dittoSeq")
+library(dittoSeq)
+dittoBarPlot(
+  object = SO.tot.harmony,
+  cells.use = good.cells,
+  var = "manual_clusters",
+  group.by = "ident.sample", retain.factor.levels = T)
+dittoBarPlot(
+  object = SO.tot.harmony,
+  var = "manual_clusters",
+  group.by = "ident.sample", retain.factor.levels = T)
+dittoBarPlot(SO.tot.harmony, var = "manual_clusters", group.by = "ident.status", retain.factor.levels = T)
+dittoBarPlot(SO.tot.harmony, var = "manual_clusters", group.by = "TNFi_respond", retain.factor.levels = T)
+dittoBarPlot(SO.tot.harmony, var = "manual_clusters", group.by = "ident.drug", retain.factor.levels = T)
+
+
+levels(as.factor(SO.tot.harmony$ident.sample))
+Idents(SO.tot.harmony) <- 'ident.sample'
+SO.tot.harmony <- subset(SO.tot.harmony, idents = 'AJH_IL17_base', invert = T)
+
+Idents(SO.tot.harmony) <- 'manual_clusters'
+SO.TNK <- subset(SO.tot.harmony, idents = c('T cell', "NK cell", "Cytotoxic NK cell","Proliferating T/NK"))
+DimPlot(SO.TNK)
+rm(SO.tot.TNFibase)
+rm(d0, d1, p5, p6, Proportion_patient, tmp, volcano, volcano_pbmc, volcano_plot)
+save.image("~/AS_Therapy/script/230123_tot(-1), TNK.RData")
+
+
+rm(SO.tot.harmony)
+
+DefaultAssay(SO.TNK) <- 'RNA'
+SO.TNK <- SO.TNK %>%
+  NormalizeData(verbose = FALSE)%>%
+  FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>% 
+  ScaleData(vars.to.regress = "percent.mt",verbose = FALSE) %>% 
+  RunPCA(npcs = 20, verbose = FALSE) %>%
+  RunUMAP(reduction = "pca", dims = 1:20) %>% 
+  FindNeighbors(reduction = "pca", dims = 1:20) %>% 
+  FindClusters(resolution = 0.5)
+
+DimPlot(SO.TNK)
+FeaturePlot(SO.TNK, features = 'FOXP3')
+DimPlot(SO.TNK, group.by = 'manual_clusters', split.by = 'ident.sample', ncol = 8, raster = F)
+table(SO.TNK$sample_index, SO.TNK$ident.name)
+
+getwd()
+a <- table(SO.CD4$sample_index, SO.CD4$ident.sample)
+library(openxlsx)
+write.xlsx(a, 'test.xlsx')
+
+SO.TNK$ident.batch <- NA
+SO.TNK$ident.batch[SO.TNK$sample_index == '1'] <- 'batch_1'
+SO.TNK$ident.batch[SO.TNK$sample_index == '2'] <- 'batch_2'
+SO.TNK$ident.batch[SO.TNK$sample_index == '3'] <- 'batch_3'
+SO.TNK$ident.batch[SO.TNK$sample_index == '4'] <- 'batch_4'
+SO.TNK$ident.batch[SO.TNK$sample_index == '5'] <- 'batch_5'
+
+SO.TNK$ident.batch[SO.TNK$sample_index == '6'] <- 'batch_6'
+SO.TNK$ident.batch[SO.TNK$sample_index == '7'] <- 'batch_6'
+SO.TNK$ident.batch[SO.TNK$sample_index == '8'] <- 'batch_6'
+
+SO.TNK$ident.batch[SO.TNK$sample_index == '9'] <- 'batch_7'
+SO.TNK$ident.batch[SO.TNK$sample_index == '10'] <- 'batch_8'
+SO.TNK$ident.batch[SO.TNK$sample_index == '11'] <- 'batch_9'
+SO.TNK$ident.batch[SO.TNK$sample_index == '12'] <- 'batch_9'
+SO.TNK$ident.batch[SO.TNK$sample_index == '13'] <- 'batch_10'
+SO.TNK$ident.batch[SO.TNK$sample_index == '14'] <- 'batch_11'
+SO.TNK$ident.batch[SO.TNK$sample_index == '15'] <- 'batch_12'
+SO.TNK$ident.batch[SO.TNK$sample_index == '16'] <- 'batch_12'
+SO.TNK$ident.batch[SO.TNK$sample_index == '17'] <- 'batch_12'
+SO.TNK$ident.batch[SO.TNK$sample_index == '18'] <- 'batch_12'
+SO.TNK$ident.batch[SO.TNK$sample_index == '19'] <- 'batch_13'
+SO.TNK$ident.batch[SO.TNK$sample_index == '20'] <- 'batch_13'
+
+Idents(SO.TNK) <- 'ident.batch'
+levels(as.factor(SO.TNK$ident.batch))
+
+
+# Start
+DefaultAssay(SO.TNK) <- 'RNA'
+pbmcsca.list <- SplitObject(SO.TNK, split.by="ident.batch") #change
+pbmcsca.list <- lapply(X = pbmcsca.list, 
+                       FUN = function(x) {
+                         x <- SCTransform(x, vars.to.regress = "percent.mt", verbose = TRUE,
+                                          method = "glmGamPoi", 
+                                          return.only.var.genes = FALSE)
+                       })
+
+var.features <- SelectIntegrationFeatures(object.list = pbmcsca.list, nfeatures = 3000)
+# pbmcsca.list <- PrepSCTIntegration(object.list = pbmcsca.list, anchor.features = var.features)
+pbmcsca.sct <- merge(x = pbmcsca.list[[1]], y = pbmcsca.list[2:length(pbmcsca.list)], merge.data=TRUE)
+
+pbmcsca.sct <- RunPCA(pbmcsca.sct, verbose = FALSE)
+library(harmony)
+pbmcsca.sct <- RunHarmony(pbmcsca.sct, assay.use="SCT", group.by.vars = "ident.batch") #change
+pbmcsca.sct <- RunUMAP(pbmcsca.sct, reduction = "harmony", dims = 1:30)
+pbmcsca.sct <- FindNeighbors(pbmcsca.sct, reduction = "harmony", dims = 1:30) %>% FindClusters()
+DimPlot(pbmcsca.sct, split.by = 'ident.batch', ncol = 5)
+FeaturePlot(pbmcsca.sct, features = "FOXP3")
+
+SO.TNK.harmony <- pbmcsca.sct
+DimPlot(SO.TNK.harmony, label = T)
+DimPlot(SO.TNK.harmony, split.by = 'ident.batch', ncol = 5, raster = F)
+DefaultAssay(SO.TNK.harmony) <- 'RNA'
+SO.TNK.harmony <- NormalizeData(SO.TNK.harmony)
+FeaturePlot(SO.TNK.harmony, features = c("CD3E","CD4", "CD8A", "FOXP3", "MKI67", "XCL1"))
+
+
+rm(pbmcsca.sct, SO.TNK, pbmcsca.list, test1)
+save.image("~/AS_Therapy/script/230123_TNK_SCTv1.RData")
+
+
+test1 <- SO.TNK.harmony
+Idents(SO.TNK.harmony) <- 'ident.batch'
+Idents(SO.TNK.harmony)
+test1 <- subset(SO.TNK.harmony, idents = c("batch_1", "batch_6", "batch_12"))
+DimPlot(test1, split.by = 'ident.batch')
+
+DefaultAssay(test1) <- 'SCT'
+
+
+DimPlot(SO.TNK.harmony, label = T)
+a <- WhichCells(SO.TNK.harmony, expression = FOXP3 > 0)
+table(SO.TNK.harmony$seurat_clusters, SO.TNK.harmony@assays$RNA)
+FeaturePlot(SO.TNK.harmony, 'FOXP3', min.cutoff = 'q10')
+
+table(SO.TNK.harmony$seurat_clusters)
+
+SO.TNK.harmony <- subset(SO.TNK.harmony, idents = c("8", "11"), invert = T)
+DimPlot(SO.TNK.harmony, label = T)
+
+SO.TNK <- SO.TNK_inM
+DefaultAssay(SO.TNK) <- 'RNA'
+GetAssay(SO.TNK)
+SO.TNK.harmony <- SO.TNK %>%
+  NormalizeData(verbose = FALSE)%>%
+  FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>% 
+  ScaleData(vars.to.regress = "percent.mt",verbose = FALSE) %>% 
+  RunPCA(npcs = 20, verbose = FALSE)
+
+pct.sct <- (SO.TNK.harmony[['pca']]@stdev)/(sum(SO.TNK.harmony[['pca']]@stdev))*100
+cumu.sct <- cumsum(pct.sct)
+co1.sct <- which(cumu.sct > 90 & pct.sct < 5)[1]
+co2.sct <- sort(which((pct.sct[1:length(pct.sct) - 1] - pct.sct[2:length(pct.sct)]) > 0.1), decreasing = T)[1] + 1
+pcs.sct <- min(co1.sct, co2.sct)
+pcs.sct #14
+
+library(harmony)
+SO.TNK.harmony <- SO.TNK.harmony %>% 
+  RunHarmony(assay.use="RNA", group.by.vars = "ident.batch") %>% 
+  RunUMAP(reduction = "harmony", dims = 1:20) %>% 
+  FindNeighbors(reduction = "harmony", dims = 1:20) %>% 
+  FindClusters(resolution = 0.5)
+
+save.image("~/AS_Therapy/script/230_TNK_standard(-8,11).RData")
+
+DimPlot(SO.TNK.harmony, label = T)
+DimPlot(SO.TNK.harmony, split.by = 'seurat_clusters', ncol = 4)
+FeaturePlot(SO.TNK.harmony, features = MtP.TNK, ncol = 4)
+FeaturePlot(SO.TNK.harmony, MtP.gdT, ncol = 3)
+MtP.gdT <- c('KLRB1', "LTK", "SLC4A10", "ADAM12", "CXCR6", "ZBTB16")
+
+
+DefaultAssay(SO.TNK) <- 'RNA'
+pbmcsca.list <- SplitObject(SO.TNK, split.by="ident.name") #change
+pbmcsca.list <- lapply(X = pbmcsca.list, 
+                       FUN = function(x) {
+                         x <- SCTransform(x, vars.to.regress = "percent.mt", verbose = TRUE,
+                                          method = "glmGamPoi", 
+                                          return.only.var.genes = FALSE)
+                       })
+
+var.features <- SelectIntegrationFeatures(object.list = pbmcsca.list, nfeatures = 3000) 
+pbmcsca.sct <- merge(x = pbmcsca.list[[1]], y = pbmcsca.list[2:length(pbmcsca.list)], merge.data=TRUE)
+
+VariableFeatures(pbmcsca.sct) <- var.features # HVG는 merge 이전에 찾아준 것으로
+pbmcsca.sct <- RunPCA(pbmcsca.sct, verbose = FALSE)
+library(harmony)
+pbmcsca.sct <- RunHarmony(pbmcsca.sct, assay.use="SCT", group.by.vars = "ident.name") #change
+pbmcsca.sct <- RunUMAP(pbmcsca.sct, reduction = "harmony", dims = 1:30)
+pbmcsca.sct <- FindNeighbors(pbmcsca.sct, reduction = "harmony", dims = 1:30) %>% FindClusters()
+DimPlot(pbmcsca.sct, split.by = 'ident.batch', ncol = 5)
+FeaturePlot(pbmcsca.sct, features = "FOXP3")
+
+SO.TNK.harmony <- pbmcsca.sct
+DefaultAssay(SO.TNK.harmony) <- 'RNA'
+SO.TNK.harmony <- NormalizeData(SO.TNK.harmony)
+
+DimPlot(SO.TNK.harmony, label = T)
+DimPlot(SO.TNK.harmony, split.by = 'seurat_clusters', ncol = 4, raster = F)
+FeaturePlot(SO.TNK.harmony, features = MtP.TNK, ncol = 4)
+FeaturePlot(SO.TNK.harmony, MtP.gdT, ncol = 3)
+
+
+rm(pbmcsca.sct, SO.TNK, pbmcsca.list, test1)
+save.image("~/AS_Therapy/script/230124_TNK_SCTv1_last.RData") 
+
+
+
+
+
+##### Dbl 
+## pK Identification (no ground-truth) ---------------------------------------------------------------------------------------
+library(DoubletFinder)
+library(KernSmooth)
+library(ROCR)
+sweep.res.list_test1 <- paramSweep_v3(test1, PCs = 1:20, sct = TRUE) 
+sweep.stats_test1 <- summarizeSweep(sweep.res.list_test1, GT = FALSE)
+bcmvn_test1 <- find.pK(sweep.stats_test1)
+# Bimodality coefficient
+ggplot(bcmvn_test1, aes(pK, BCmetric, group = 1)) +
+  geom_point() +
+  geom_line()
+
+pK <- bcmvn_test1 %>% # select the pK that corresponds to max bcmvn to optimize doublet detection
+  filter(BCmetric == max(BCmetric)) %>%
+  select(pK) 
+pK <- as.numeric(as.character(pK[[1]]))
+# optimal pK 0.80 나옴
+
+## Homotypic Doublet Proportion Estimate -------------------------------------------------------------------------------------
+annotations <- test1@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)           ## ex: annotations <- seu_kidney@meta.data$ClusteringResults
+nExp_poi <- round(0.076*nrow(test1@meta.data))  ## Assuming 7.5% doublet formation rate - tailor for your dataset
+nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+# doublet으로 보이는 비율 adjustment
+
+# run doubletFinder 
+test1 <- doubletFinder_v3(test1,PCs = 1:20, 
+                          pN = 0.25, 
+                          pK = pK, 
+                          nExp = nExp_poi.adj, 
+                          reuse.pANN = FALSE, sct = TRUE) # SCTransform해서 그런가 sct = T 해야 오류가 안 남
+names(test1@meta.data)
+
+# visualize doublets
+p1 <- DimPlot(test1, reduction = 'umap', label = TRUE)
+p2 <- DimPlot(test1, reduction = 'umap', group.by = "DF.classifications_0.25_0.08_3536") # pN_pK_nExp_poi.adj 명명인 듯
+CombinePlots(list(p1, p2))
+save.image("~/AS_Therapy/script/230123_TNK_Dbl_out.RData")
+
+table(test1$DF.classifications_0.25_0.08_3536)
+Idents(test1) <- 'DF.classifications_0.25_0.08_3536'
+DefaultAssay(test1) <- 'RNA'
+VlnPlot(test1, features = c("nCount_RNA", "nFeature_RNA"),group.by = "DF.classifications_0.25_0.08_3536", pt.size = 0)
+
+DimPlot(test1, split.by = "DF.classifications_0.25_0.08_3536")
+table(test1$DF.classifications_0.25_0.08_3536, test1$seurat_clusters)
+
+
+rm(sweep.res.list_test1, sweep.stats_test1, test1)
+
+
+DefaultAssay(SO.TNK.harmony) <- 'RNA'
+FeaturePlot(SO.TNK.harmony, features = MtP.TNK, ncol = 4)
+FeaturePlot(SO.TNK.harmony, MtP.NvM, ncol = 6) 
+
+test1 <- RunUMAP(SO.TNK.harmony, reduction = "harmony",dims = 1:35)
+test2 <- RunUMAP(SO.TNK.harmony, reduction = "harmony",dims = 1:33)
+test3 <- RunUMAP(SO.TNK.harmony, reduction = "harmony",dims = 1:40)
+test4 <- RunUMAP(SO.TNK.harmony, reduction = "harmony",dims = 1:25)
+test5 <- RunUMAP(SO.TNK.harmony, reduction = "harmony",dims = 1:20)
+
+
+FeaturePlot(test1, features = MtP.TNK, ncol = 4)
+FeaturePlot(test1, c('KLRB1', "LTK", "SLC4A10", "ADAM12", "CXCR6", "ZBTB16"), ncol = 3)
+FeaturePlot(test5, c('KLRB1', "LTK", "SLC4A10", "ADAM12", "CXCR6", "ZBTB16"), ncol = 3)
+FeaturePlot(test4, c('KLRB1', "LTK", "SLC4A10", "ADAM12", "CXCR6", "ZBTB16"), ncol = 3)
+
+table(SO.TNK.harmony$seurat_clusters, SO.TNK.harmony$ident.batch)
+
+FeaturePlot(SO.TNK.harmony, features = MtP.TNK, ncol = 4, min.cutoff = 'q9')
+
+## Standard 과정으로 하면 어떻게 될지(이게 안 되면 runUMAP dim 조절 더 해보거나 harmony batch 바꿔줘야 할 수도 )
+rm(test1, test2, test3, test4, test5)
+
+DefaultAssay(SO.TNK.harmony) <- 'RNA'
+GetAssay(SO.TNK.harmony)
+SO.TNK.harmony <- SO.TNK.harmony %>%
+  NormalizeData(verbose = FALSE)%>%
+  FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>% 
+  ScaleData(vars.to.regress = "percent.mt",verbose = FALSE) %>% 
+  RunPCA(npcs = 20, verbose = FALSE)
+
+library(harmony)
+SO.TNK.harmony <- SO.TNK.harmony %>% 
+  RunHarmony(assay.use="RNA", group.by.vars = "ident.batch") %>% 
+  RunUMAP(reduction = "harmony", dims = 1:20) %>% 
+  FindNeighbors(reduction = "harmony", dims = 1:20) %>% 
+  FindClusters(resolution = 0.5) 
+DimPlot(SO.TNK.harmony)
+FeaturePlot(SO.TNK.harmony, features = c("CD3E", "CD4", "CD8A", "FOXP3"))
+
+save.image("~/AS_Therapy/script/230123_TNK standard harmony.RData")
+
+FeaturePlot(SO.TNK.harmony, features = MtP.TNK, ncol = 4)
+FeaturePlot(SO.TNK.harmony, c('KLRB1', "LTK", "SLC4A10", "ADAM12", "CXCR6", "ZBTB16"), ncol = 3)
+
+DimPlot(SO.TNK.harmony, split.by = 'seurat_clusters', raster = F, ncol = 4)
+DimPlot(SO.TNK.harmony, label = T)
+VlnPlot(SO.TNK.harmony, features = 'nFeature_RNA', pt.size = 0)
+DefaultAssay(SO.TNK.harmony) <- 'RNA'
+SO.TNK.harmony <- ScaleData(SO.TNK.harmony, vars.to.regress = 'percent.mt')
+DotPlot(SO.TNK.harmony, features = MtP.TNK, cols = c("lightgrey", 'red')) + RotatedAxis()
+
+FeaturePlot(SO.TNK.harmony, features = MtP.TNK, ncol = 4)
+FeaturePlot(SO.TNK.harmony, c('KLRB1', "LTK", "SLC4A10", "ADAM12", "CXCR6", "ZBTB16"), ncol = 3)
+
+
+DimPlot(SO.TNK.harmony, split.by = 'seurat_clusters', ncol = 4, raster = F) 
+DefaultAssay(SO.TNK.harmony) <- 'SCT'
+test <- FindClusters(SO.TNK.harmony,resolution = c(1:7)/10)
+
+Idents(test)
+
+DefaultAssay(test) <- 'RNA'
+DimPlot(test, label = T)
+Idents(test) <- "SCT_snn_res.0.8"
+DimPlot(test, split.by = 'SCT_snn_res.0.8', ncol = 4, raster = F)
+
+
+##
+DefaultAssay(SO.TNK.harmony) <- 'RNA'
+SO.TNK.harmony <- SO.TNK.harmony %>%
+  NormalizeData(verbose = FALSE)%>%
+  FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>% 
+  ScaleData(vars.to.regress = "percent.mt",verbose = FALSE) 
+
+
+DimPlot(SO.TNK.harmony)
+DefaultAssay(SO.TNK.harmony) <- 'RNA'
+SO.TNK.harmony <- NormalizeData(SO.TNK.harmony)
+FeaturePlot(SO.TNK.harmony, features = MtP.TNK, ncol = 4)
+
+DefaultAssay(SO.TNK.harmony) <- 'SCT'
+test <- RunUMAP(SO.TNK.harmony, reduction = 'harmony',dims = 1:20)
+DimPlot(test)
+FeaturePlot(test, features = MtP.TNK, ncol = 4)
+DimPlot(test, split.by = 'seurat_clusters', ncol = 4,raster = F)
+
+DefaultAssay(test)<- 'RNA'
+FindConservedMarkers(test, ident.1 = 13, grouping.var = 'ident.batch') 
+
+pct.sct <- (SO.TNK.harmony[['pca']]@stdev)/(sum(SO.TNK.harmony[['pca']]@stdev))*100
+cumu.sct <- cumsum(pct.sct)
+co1.sct <- which(cumu.sct > 90 & pct.sct < 5)[1]
+co2.sct <- sort(which((pct.sct[1:length(pct.sct) - 1] - pct.sct[2:length(pct.sct)]) > 0.1), decreasing = T)[1] + 1
+pcs.sct <- min(co1.sct, co2.sct)
+pcs.sct #12
+
+DefaultAssay(SO.TNK.harmony) <- 'SCT'
+test1 <- SO.TNK.harmony %>%
+  RunUMAP(reduction = "harmony", dims = 1:15) %>%
+  FindNeighbors(reduction = "harmony", dims = 1:15) %>% FindClusters()
+
+DefaultAssay(test1) <- 'RNA'
+DimPlot(test1, label = T, split.by = 'seurat_clusters', ncol = 4)
+FeaturePlot(test1, features = MtP.TNK, ncol = 4)
+
+DimPlot(SO.TNK.harmony, label = T)
+
+library(harmony)
+pbmcsca.sct <- RunHarmony(SO.TNK.harmony, assay.use="SCT", group.by.vars = "ident.name") #change
+pbmcsca.sct <- RunUMAP(pbmcsca.sct, reduction = "harmony", dims = 1:30)
+pbmcsca.sct <- FindNeighbors(pbmcsca.sct, reduction = "harmony", dims = 1:30) %>% FindClusters()
+DimPlot(pbmcsca.sct, split.by = 'ident.batch', ncol = 5)
+
+save.image("~/AS_Therapy/script/230124_TNK_test_No same ident.name.RData")
+
+
+
+rm(SO.TNK)
+DimPlot(SO.TNK.harmony)
+
+DefaultAssay(SO.TNK.harmony) <- 'RNA'
+test <- FindClusters(SO.TNK.harmony, resolution = c(6:15)/10)
+DefaultAssay(SO.TNK.harmony) <- 'RNA'
+DefaultAssay(test) <- 'RNA'
+
+Idents(test) <- "RNA_snn_res.0.7" # 0.7 good
+DimPlot(test, label = T)
+DimPlot(test, split.by = 'RNA_snn_res.0.7',label = T, ncol = 4)
+
+SO.TNK.harmony <- test
+rm(test)
+DimPlot(SO.TNK.harmony, label = T)
+
+Idents(SO.TNK.harmony)
+TNK.Findall <- FindAllMarkers(SO.TNK.harmony)
+
+test <- SO.TNK.harmony
+
+Idents(test) <- 'manual_clusters'
+DimPlot(test, label=T)
+
+
+CD4_EMRA<- test@assays$RNA@counts["CD4",] > 0  & test$RNA_snn_res.2.4 =='27' # 213개 TRUE/cluster 27이 총 1440
+CD4_EMRA<- test@assays$RNA@counts["CD4",] == 0  & test$RNA_snn_res.2.4 =='27'# 1227개
+xxx <- test@assays$RNA@counts["CD8A",] == 0  & test$RNA_snn_res.2.4 =='27' # 1319개 TRUE
+table(CD4_EMRA)
+table(xxx)
+test$manual_clusters <- SO.TNK.harmony$manual_clusters
+test$manual_clusters
+
+# SO.CD4.harmony$cop_OX_GI <- "etc."
+test$manual_clusters[CD4_EMRA] <- "CD4, EMRA"
+Idents(test) <- 'manual_clusters' # 이거 한 번 멕여줘야 적용됨
+Idents(test)
+DimPlot(test, label = T)
+test$manual_clusters[test$manual_clusters == 'CD8, Temra'] <- 'CD8, EMRA'
+
+
+DimPlot(test, split.by = 'manual_clusters', ncol = 5)
+
+###
+
+RenameCells(Cytotoxic_CD4, new.names = '')
+test <- FindClusters(test, resolution = 2.4)
+DimPlot(test, group.by = 'RNA_snn_res.2.4', label = T)
+test$manual_clusters <- c("27"="CD4, EMRA")[test$RNA_snn_res.2.4]
+Idents(test) <- 'manual_clusters'
+DimPlot(test, label=T)
+
+Idents(SO.TNK.harmony)
+
+DimPlot(SO.TNK.harmony, label = T)
+
+a.7 <- rownames_to_column(a.7, "Genes")
+a.13 <- rownames_to_column(a.13, "Genes")
+a.11 <- rownames_to_column(a.11, "Genes")
+a.12 <- rownames_to_column(a.12, "Genes")
+
+a.NK1 <- rownames_to_column(a.NK1, "Genes")
+a.NK2 <- rownames_to_column(a.NK2, "Genes")
+a.NK3 <- rownames_to_column(a.NK3, "Genes")
+
+
+test <- FindClusters(test, resolution = c(16:25)/10)
+Idents(test) <- "RNA_snn_res.2.4" # 2.4 good
+DimPlot(test, label = T)
+DotPlot(test, features = c('CD4', 'CD8A'))
+
+Cytotoxic_CD4 <- WhichCells(test, idents = '27')
+Cytotoxic_CD4
+DimPlot(test, cells = Cytotoxic_CD4)
+FeaturePlot(test, features = c("CD4", "CD8A"))
+
+test$cyCD4 <- NA
+test$cyCD4[test$RNA_snn_res.2.4 == '27'] <- 'cyCD4'
+test$cyCD4[test$RNA_snn_res.2.3 == '20'] <- 'cyCD4'
+test$cyCD4[test$RNA_snn_res.2 == '18'] <- 'cyCD4'
+
+test$cyCD4[is.na(test$cyCD4)] <- 'x'
+table(test$cyCD4, test$seurat_clusters)
+
+color_palette <- c("cyCD4"="red","x"="#eeeeee20")
+size_palette <- c("cyCD4"=0.8,"x"=0.3)
+
+
+p1 <- DimPlot(test,reduction = "umap",group.by = "cyCD4",
+              cols=color_palette[test$cyCD4]) + NoLegend() 
+
+p2 <- FeaturePlot(test, features ='CD4')
+
+CombinePlots(list(p1, p2))
+test$CD4_cyto <- c("27"="xx")[test$seurat_clusters]
+Idents(test) <- 'CD4_cyto' 
+DimPlot(test, label = T)
+
+
+#
+Idents(test) <- "RNA_snn_res.2.4" # 2.4 good
+DimPlot(test, label = T)
+
+DimPlot(SO.TNK.harmony, label = T)
+DimPlot(SO.TNK.harmony, split.by = 'ident.status2', ncol = 4)
+FeaturePlot(SO.TNK.harmony, features = MtP.NvM, ncol = 5)
+FeaturePlot(SO.TNK.harmony, features = c('GZMB', "CX3CR1", "CD27", "CD28", "PDCD1", "TIGIT", 
+                                         "ENTPD1", "CD69", "HLA-DRA"), ncol = 3)
+
+FeaturePlot(SO.TNK.harmony, features = c("CAV1", "ISG15"))
+FeaturePlot(SO.TNK.harmony, features = MtP.Tfh, ncol = 3)
+FeaturePlot(SO.TNK.harmony, features = c("CD127", "IL7R", "PTPRC"), ncol = 3, min.cutoff = 'q5')
+
+Idents(test) <- "RNA_snn_res.1.1" # 2.4 good
+DimPlot(test, label = T)
+
+DotPlot(SO.TNK.harmony, features = MtP.NvM, cols = c("lightgrey", "red"), dot.scale = 8) +
+  RotatedAxis()
+VlnPlot(SO.TNK.harmony, features = c('nCount_RNA', 'nFeature_RNA', 'percent.mt'), pt.size = 0)
+
+SO.TNK.harmony <- test
+rm(test)
+save.image("~/AS_Therapy/script/230129_TNK annotation.RData")
+
+
+
+
+table(SO.TNK.harmony$manual_clusters, SO.TNK.harmony$ident.status2)
+test <- SO.TNK.harmony
+test <- subset(test, idents = 'Doublet', invert = T)
+DimPlot(test, label = T)
+
+test$manual_clusters <- factor(test$manual_clusters, 
+                               levels = c("CD4, Naive", "CD4, Memory", "CD4, EMRA", "Treg",
+                                          "CD8, Naive", "CD8, CM/EM", "CD8, EMRA",
+                                          "MAIT", "gamma/delta T",
+                                          "CD56hi NK", "CD56dim NKG2Chi NK", "CD56dim FceR1Ghi NK",
+                                          "Proliferating T/NK", "Uncategorized"))
+TNK.level <- c("CD4, Naive", "CD4, Memory", "CD4, EMRA", "Treg",
+               "CD8, Naive", "CD8, CM/EM", "CD8, EMRA",
+               "MAIT", "gamma/delta T",
+               "CD56hi NK", "CD56dim NKG2Chi NK", "CD56dim FceR1Ghi NK",
+               "Proliferating T/NK", "Uncategorized")
+Idents(test) <- 'manual_clusters'
+DimPlot(test, label = T)
+SO.TNK.harmony <- test
+TNK_prop <- table(SO.TNK.harmony$manual_clusters, SO.TNK.harmony$ident.status2)
+write.xlsx(TNK_prop, 'TNK_prop.xlsx')
+
+
+
+rm(test)
+save.image("~/AS_Therapy/script/230129_TNK_all.RData")
+
+
+Idents(SO.TNK.harmony) <- 'manual_clusters'
+SO.NK <- subset(SO.TNK.harmony, idents = c("CD56hi NK", "CD56dim FceR1Ghi NK", "CD56dim NKG2Chi NK",
+                                           "Proliferating T/NK"))
+DimPlot(SO.NK, label = T )
+SO.T <- subset(SO.TNK.harmony, idents = c("CD56hi NK", "CD56dim FceR1Ghi NK", "CD56dim NKG2Chi NK"),
+               invert = T) 
+DimPlot(SO.T, label = T)
+rm(SO.NK, SO.TNK.harmony)
+save.image("~/AS_Therapy/script/230130_T cell only.RData")
+
+SO.gdT <- subset(SO.T, idents = 'gamma/delta T')
+Idents(SO.gdT) <- 'TNFi_respond'
+SO.gdT.good <- subset(SO.gdT, idents = 'good')
+Idents(SO.gdT.good) <- 'ident.status'
+a <- FindMarkers(SO.gdT.good, ident.1 = 'Af_TNFi', ident.2 = 'Bf_TNFi')
+
+
+
+rm(SO.gdT, SO.gdT.good, a)
+Idents(SO.T) <- 'manual_clusters'
+SO.T <- subset(SO.T, idents = 'gamma/delta T', invert = T)
+
+
+
+
+
+DimPlot(SO.TNK.harmony, split.by = 'seurat_clusters', ncol = 4, raster = F)
+DefaultAssay(SO.TNK.harmony) <- 'SCT'
+test1 <- SO.TNK.harmony %>%
+  RunUMAP(reduction = "harmony", dims = 1:20) %>%
+  FindNeighbors(reduction = "harmony", dims = 1:20) %>% FindClusters()
+DefaultAssay(SO.TNK.harmony) <- 'RNA'
+DefaultAssay(test1) <- 'RNA'
+rm(test1)
+
+
+test1 <- SO.TNK.harmony %>%
+  RunUMAP(reduction = "harmony", dims = 1:15) %>%
+  FindNeighbors(reduction = "harmony", dims = 1:15) %>% FindClusters()
+DimPlot(test1)
+DimPlot(test1, split.by = 'seurat_clusters', ncol = 4)
+FeaturePlot(test1, features = MtP.TNK, ncol = 4)
+
+DefaultAssay(SO.TNK.harmony) <- 'RNA'
+library(DESeq2)
+TNK.Findall <- FindAllMarkers(SO.TNK.harmony, only.pos = T,
+                              test.use = 'DESeq2', slot = 'counts')
+TNK.Findall <- FindAllMarkers(SO.TNK.harmony, only.pos = T)
+write.xlsx(TNK.Findall, 'TNK.Findall.xlsx')
+
+
+FeaturePlot(SO, features = '~~', split.by = 'ident.status2', min.cutoff = 'q10')
+
+
+DimPlot(SO.CD4.sct, label = T)
+
+
+Idents(SO.CD4.TNFi) <- 'ident.status2'
+Idents(SO.CD4.TNFi)
+SO.CD4.TNFi <- RenameIdents(object = SO.CD4.TNFi, 'bad_Bf_TNFi' = 'NR_Bf')
+SO.CD4.TNFi <- RenameIdents(object = SO.CD4.TNFi, 'bad_Af_TNFi' = 'NR_Af')
+SO.CD4.TNFi <- RenameIdents(object = SO.CD4.TNFi, 'good_Bf_TNFi' = 'R_Bf')
+SO.CD4.TNFi <- RenameIdents(object = SO.CD4.TNFi, 'good_Af_TNFi' = 'R_Af')
+SO.CD4.TNFi$ident.status2 <- SO.CD4.TNFi@active.ident
+table(SO.CD4.TNFi$ident.status2)
+
+SO.CD4.TNFi$ident.status2 <- factor(SO.CD4.TNFi$ident.status2, levels = c("NR_Bf", "NR_Af", "R_Bf", "R_Af"))
+table(SO.CD4.TNFi$ident.status)
+table(SO.CD4.TNFi$ident.status.specific)
+SO.CD4.TNFi$TNFi_respond[SO.CD4.TNFi$TNFi_respond == 'good'] <- 'R'
+SO.CD4.TNFi$TNFi_respond[SO.CD4.TNFi$TNFi_respond == 'bad'] <- 'NR'
+SO.CD4.TNFi$ident.status.specific <- paste(SO.CD4.TNFi$TNFi_respond, SO.CD4.TNFi$ident.name, SO.CD4.TNFi$ident.status3, sep = '_')
+table(SO.CD4.TNFi$ident.status.specific)
+
+
+
+SO.CD4.TNFi에서 IKz Treg, CD52 hi애들 확인,, IL6ST, MAF, ARID5A, STAT3
+VlnPlot(SO.CD4.TNFi, features = c("ARID5A", "STAT3", "IL6ST", "MAF"), ncol = 2)
+# heatmap
+
+
+
+
+### 230809
+DimPlot(SO.tot, label = T)
+SO.tot@meta.data
+SO.tot.harmony <- SO.tot
+rm(SO.tot)
+
+DefaultAssay(SO.tot.harmony) <- 'SCT'
+SO.tot.harmony <- RunUMAP(SO.tot.harmony, reduction = "harmony", dims = 1:30)
+SO.tot.harmony <- FindNeighbors(SO.tot.harmony, reduction = "harmony", dims = 1:30) %>% FindClusters(resolution =0.8)
+
+SO.tot.harmony$manual_clusters <- factor(SO.tot.harmony$manual_clusters, levels = c("T cell", "NK cell", "Proliferating T/NK", "Cytotoxic NK cell",
+                                                                                    "CD14 Monocyte", "CD16 Monocyte", "DC", "pDC", "B cell"))
+Idents(SO.tot.harmony) <- 'manual_clusters'
+DimPlot(SO.tot.harmony, raster = F)
+
+DimPlot(SO.CD4.harmony, label = T)
+dittoBarPlot(SO.CD4.harmony, var = 'manual_clusters', group.by = 'ident.status2')
+dittoBarPlot(SO.CD4.harmony, var = 'manual_clusters', group.by = 'ident.status.specific')
+
+DefaultAssay(SO.CD4.harmony)
+SO.CD4.harmony <- NormalizeData(SO.CD4.harmony)
+DotPlot(SO.CD4.harmony, features = c("IFNG", "IL17A", "RORC", "CCR6", "TBX21", "TCF7")) + RotatedAxis() + scale_color_viridis()
+FeaturePlot(SO.CD4.harmony, features = c("IFNG", "IL17A", "RORC", "CCR6", "TBX21", "CXCR3","TCF7", "FOXP3", "CSF2"), ncol = 3, order = T)
+
+DimPlot(SO.CD4.harmony, group.by = 'seurat_clusters', label = T)
+DotPlot(SO.CD4.harmony, group.by = 'ident.status.specific', features = c("TCF7", "CD27"))
+
+SO.Memory <- subset(SO.CD4.harmony, manual_clusters %in% 'Naive', invert = T)
+
+DefaultAssay(SO.CD4.harmony)
+SO.Memory <- NormalizeData(SO.Memory)
+SO.Memory <- RunUMAP(SO.Memory, reduction = "harmony", dims = 1:30)
+SO.Memory <- FindNeighbors(SO.Memory, reduction = "harmony", dims = 1:30) %>% FindClusters(resolution =1.2)
+
+DotPlot(SO.Memory, features = c("IFNG", "IL17A", "RORC", "CCR6", "TBX21", "CXCR3", "FOXP3", "CSF2", "NR4A1", "TNFRSF4", "TNFRSF18","KLRB1", "GPR65"), group.by = 'seurat_clusters') + scale_color_viridis() + scale_size(range = c(0.5, 5)) + RotatedAxis()
+
+DimPlot(SO.Memory, label = T)
+FeaturePlot(SO.Memory, features = c("IL17A", "IL17F", "IFNG"))
+
+table(SO.Memory$manual_clusters, SO.Memory$seurat_clusters)
+
+DotPlot(SO.Memory, features = MtP.Th.add) + RotatedAxis() + scale_color_viridis() + scale_size(range = c(0.5, 5))
+DotPlot(SO.Memory, features = MtP.NvM, group.by = 'seurat_clusters') + RotatedAxis() + scale_color_viridis() + scale_size(range = c(0.5, 5))
+
